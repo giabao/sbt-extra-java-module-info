@@ -144,8 +144,10 @@ object ExtraJavaModuleInfoTransform {
           s"[requires directives from metadata] Cannot find dependencies for '${moduleInfo.moduleName}'. " +
             s"Are '${moduleInfo.id}' the correct component coordinates?"
         )
-      val allDeps = compileDeps ++ runtimeDeps
-      for (ga <- allDeps) {
+      for {
+        ga <- compileDeps ++ runtimeDeps
+        if !moduleInfo.mergedJars.contains(ga)
+      } {
         val moduleName = args.gaToModuleName(ga)
         if (compileDeps.contains(ga) && runtimeDeps.contains(ga))
           moduleVisitor.visitRequire(moduleName, Opcodes.ACC_TRANSITIVE, null)
