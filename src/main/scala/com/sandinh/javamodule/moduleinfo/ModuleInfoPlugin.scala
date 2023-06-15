@@ -53,7 +53,7 @@ object ModuleInfoPlugin extends AutoPlugin {
                   case arts      => sys.error(s"Cant find art for $id. $arts")
                 }
 
-                def moduleJar = out / s"${originalJar.base}-module.jar"
+                def moduleJar = out / originalJar.name
 
                 val remappedJar = infos.find(_.id == id) match {
                   case Some(_: KnownModule) => originalJar
