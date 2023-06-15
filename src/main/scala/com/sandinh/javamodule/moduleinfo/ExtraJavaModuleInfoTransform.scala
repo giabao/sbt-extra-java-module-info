@@ -139,7 +139,10 @@ object ExtraJavaModuleInfoTransform {
     if (moduleInfo.requireAll) {
       val compileDeps = args.compileDeps.getOrElse(moduleInfo.id, Set.empty)
       val runtimeDeps = args.runtimeDeps.getOrElse(moduleInfo.id, Set.empty)
-      if (compileDeps.isEmpty && runtimeDeps.isEmpty)
+      if (
+        compileDeps.isEmpty && runtimeDeps.isEmpty &&
+        args.artifacts.forall(_.get(moduleID.key).get.jmodId != moduleInfo.id)
+      )
         throw new RuntimeException(
           s"[requires directives from metadata] Cannot find dependencies for '${moduleInfo.moduleName}'. " +
             s"Are '${moduleInfo.id}' the correct component coordinates?"
