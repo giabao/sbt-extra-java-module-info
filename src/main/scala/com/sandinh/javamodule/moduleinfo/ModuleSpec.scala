@@ -30,8 +30,6 @@ final case class AutomaticModuleName(
 final case class JModuleInfo(
     id: String,
     moduleName: String,
-    requireAllDefinedDependencies: Bool = Bool.Default,
-    exportAllPackages: Bool = Bool.Default,
     mergedJars: List[String] = Nil,
     @Nullable moduleVersion: String = null,
     openModule: Boolean = true,
@@ -42,17 +40,15 @@ final case class JModuleInfo(
     requiresStatic: Set[String] = Set.empty,
     uses: Set[String] = Set.empty,
     ignoreServiceProviders: Set[String] = Set.empty,
-) extends ModuleSpec
-
-sealed trait Bool {
-  def apply(default: Boolean): Boolean = this match {
-    case Bool.Yes     => true
-    case Bool.No      => false
-    case Bool.Default => default
-  }
-}
-object Bool {
-  case object Yes extends Bool
-  case object No extends Bool
-  case object Default extends Bool
+    /** Default = true if `(requires ++ requiresTransitive ++ requiresStatic).isEmpty` */
+    @Nullable private val requireAllDefinedDependencies: java.lang.Boolean = null,
+    /** Default = true if `exports.isEmpty` */
+    @Nullable private val exportAllPackages: java.lang.Boolean = null,
+) extends ModuleSpec {
+  def requireAll: Boolean =
+    if (requireAllDefinedDependencies != null) requireAllDefinedDependencies
+    else requires.isEmpty && requiresTransitive.isEmpty && requiresStatic.isEmpty
+  def exportAll: Boolean =
+    if (exportAllPackages != null) exportAllPackages
+    else exports.isEmpty
 }

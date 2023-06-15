@@ -47,8 +47,6 @@ object ExtraJavaModuleInfoTransform {
       originalJar: File,
       moduleJar: File,
       moduleInfo: JModuleInfo,
-      defaultRequireAll: Boolean,
-      defaultExportAll: Boolean,
   ): Unit = Using.jarInputStream(Files.newInputStream(originalJar.toPath)) { jis =>
     usingJos(moduleJar, jis.getManifest) { jos =>
       var pp = copyAndExtractProviders(jis, jos, moduleInfo.mergedJars.nonEmpty, PP.empty)
@@ -63,8 +61,7 @@ object ExtraJavaModuleInfoTransform {
           moduleInfo,
           pp.providers,
           version,
-          if (moduleInfo.exportAllPackages(defaultExportAll)) pp.packages else Set.empty,
-          defaultRequireAll
+          if (moduleInfo.exportAll) pp.packages else Set.empty
         )
       )
       jos.closeEntry()
@@ -129,7 +126,6 @@ object ExtraJavaModuleInfoTransform {
       providers: Map[String, List[String]],
       @Nullable version: String,
       autoExportedPackages: Set[String],
-      defaultRequireAll: Boolean,
   ) = {
     val classWriter = new ClassWriter(0)
     classWriter.visit(Opcodes.V9, Opcodes.ACC_MODULE, "module-info", null, null, null)
@@ -140,7 +136,7 @@ object ExtraJavaModuleInfoTransform {
     moduleInfo.exports.map(toSlash).foreach(moduleVisitor.visitExport(_, 0))
     moduleInfo.opens.map(toSlash).foreach(moduleVisitor.visitOpen(_, 0))
     moduleVisitor.visitRequire("java.base", 0, null)
-    if (moduleInfo.requireAllDefinedDependencies(defaultRequireAll)) {
+    if (moduleInfo.requireAll) {
       val compileDeps = args.compileDeps.getOrElse(moduleInfo.id, Set.empty)
       val runtimeDeps = args.runtimeDeps.getOrElse(moduleInfo.id, Set.empty)
       if (compileDeps.isEmpty && runtimeDeps.isEmpty)

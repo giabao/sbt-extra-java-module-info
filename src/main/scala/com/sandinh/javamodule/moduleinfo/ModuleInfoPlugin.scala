@@ -17,9 +17,6 @@ object ModuleInfoPlugin extends AutoPlugin {
     val moduleInfoFailOnMissing = settingKey[Boolean](
       "Fail update task if exist non-module jar dependencies and no ModuleSpec is defined for it"
     )
-    val moduleInfoRequireAll =
-      settingKey[Boolean]("Default value for JModuleInfo.requireAllDefinedDependencies")
-    val moduleInfoExportAll = settingKey[Boolean]("Default value for JModuleInfo.exportAllPackages")
   }
   import autoImport.*
 
@@ -27,14 +24,10 @@ object ModuleInfoPlugin extends AutoPlugin {
     DependencyTreeAccess.settings ++ Seq(
       moduleInfos := Nil,
       moduleInfoFailOnMissing := false,
-      moduleInfoRequireAll := false,
-      moduleInfoExportAll := false,
       update := {
         val report = update.value
         val log = streams.value.log
         val infos = moduleInfos.value
-        val defaultRequireAll = moduleInfoRequireAll.value
-        val defaultExportAll = moduleInfoExportAll.value
         val out = target.value / "moduleInfo"
         out.mkdirs()
         val failOnMissing = moduleInfoFailOnMissing.value
@@ -65,17 +58,7 @@ object ModuleInfoPlugin extends AutoPlugin {
                 val remappedJar = infos.find(_.id == id) match {
                   case Some(_: KnownModule) => originalJar
                   case Some(moduleInfo: JModuleInfo) =>
-                    genIfNotExist(
-                      moduleJar,
-                      addModuleDescriptor(
-                        args,
-                        originalJar,
-                        _,
-                        moduleInfo,
-                        defaultRequireAll,
-                        defaultExportAll
-                      )
-                    )
+                    genIfNotExist(moduleJar, addModuleDescriptor(args, originalJar, _, moduleInfo))
                   case Some(moduleSpec: AutomaticModuleName) =>
                     genIfNotExist(
                       moduleJar,
