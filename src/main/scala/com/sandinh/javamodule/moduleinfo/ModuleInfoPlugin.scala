@@ -77,8 +77,8 @@ object ModuleInfoPlugin extends AutoPlugin {
                       )
                 }
                 mod.withArtifacts(mod.artifacts.map {
-                  case x @ (a, _) if a.`type` != "jar" => x
-                  case (a, _)                          => a -> remappedJar
+                  case x @ (a, _) if a.extension != "jar" => x
+                  case (a, _)                             => a -> remappedJar
                 }) +: Nil
               }
             })
