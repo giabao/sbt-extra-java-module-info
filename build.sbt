@@ -1,5 +1,6 @@
 inThisBuild(
   Seq(
+    organization := "com.sandinh",
     versionScheme := Some("semver-spec"),
     developers := List(
       Developer(
