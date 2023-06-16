@@ -3,13 +3,12 @@ name: sbt-devops
 on: [push, pull_request]
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     outputs:
       commitMsg: ${{ steps.commitMsg.outputs.msg }}
     strategy:
       matrix:
-        java: [ '8', '11', '17' ]
-        scala: [ '2.11.12', '2.12.18', '2.13.11', '3.3.0' ]
+        java: [ '11', '17' ]
     steps:
       - uses: actions/checkout@v2
       - id: commitMsg
@@ -19,7 +18,7 @@ jobs:
           java-version: ${{ matrix.java }}
           distribution: 'temurin'
       - uses: coursier/cache-action@v6
-      - run: sbt ++${{ matrix.scala }} devopsQA test
+      - run: sbt devopsQA test scripted
       # https://www.scala-sbt.org/1.x/docs/GitHub-Actions-with-sbt.html#Caching
       - run: |
           rm -rf "$HOME/.ivy2/local" || true
@@ -37,7 +36,7 @@ jobs:
       (github.ref == 'refs/heads/main' ||
         github.ref == 'refs/heads/master' ||
         startsWith(github.ref, 'refs/tags/'))
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     outputs:
       info: ${{ steps.info.outputs.info }}
     steps:
@@ -47,7 +46,7 @@ jobs:
       - uses: actions/setup-java@v2
         with:
           distribution: 'temurin'
-          java-version: '8'
+          java-version: '11'
       - run: sbt ci-release
         env:
           PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
@@ -65,7 +64,7 @@ jobs:
   notify:
     needs: [build, publish]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: docker://ohze/devops-notify
         env:
