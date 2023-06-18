@@ -173,7 +173,7 @@ object ExtraJavaModuleInfoTransform {
         ga <- compileDeps ++ runtimeDeps
         if !info.mergedJars.contains(ga)
       } yield {
-        val moduleName = args.gaToModuleName(ga)
+        val moduleName = args.idToModuleName(ga)
         if (compileDeps.contains(ga) && runtimeDeps.contains(ga)) List(moduleName -> Require.Transitive)
         else if (runtimeDeps.contains(ga)) List(moduleName -> Require.Default)
         else if (compileDeps.contains(ga)) List(moduleName -> Require.Static)
@@ -231,13 +231,14 @@ private class ModuleInfoArgs(infos: Seq[ModuleSpec], jarTypes: Set[String], up: 
     def id = a.get(moduleID.key).get.jmodId
     a.data.moduleName.toSeq.map(KnownModule(id, _))
   }
-  def gaToModuleName(ga: String): String = allInfos
-    .find(_.id == ga)
+  def idToModuleName(id: String): String = allInfos
+    .find(_.id == id)
     .fold(
       throw new RuntimeException(
-        s"""[requires directives from metadata] The module name of the following component is not known: $ga
-             | - If it is already a module, make the module name known using 'knownModule("$ga", "<module name>")'
-             | - If it is not a module, patch it using 'module()' or 'automaticModule()'""".stripMargin
+        s"""The module name of the following component is not known: $id
+         | - If it is not a module, patch it by adding 'JModuleInfo()' or 'AutomaticModuleName()' to the `moduleInfos`
+         | - If it is already a module, make the module name known by adding 'KnownModule("$id", "<module name>")' to the `moduleInfos`
+         |   Example: Search `KnownModule` at https://github.com/giabao/sbt-java-module-info/blob/master/src/sbt-test/all/all/build.sbt) """.stripMargin
       )
     )(_.moduleName)
   // @see managedClasspath

@@ -4,7 +4,7 @@ A sbt plugin to generate module-info.class for your projects and use legacy libr
 ## How to use
 1. Add to project/plugins.sbt
 ```sbt
-addSbtPlugin("com.sandinh" % "sbt-java-module-info" % extra-java-module-info-version)
+addSbtPlugin("com.sandinh" % "sbt-java-module-info" % sbt-java-module-info-version)
 ```
 2. Enable the plugin and add settings to your sbt project
 ```sbt

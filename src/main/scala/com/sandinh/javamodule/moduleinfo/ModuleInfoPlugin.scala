@@ -111,7 +111,7 @@ object ModuleInfoPlugin extends AutoPlugin {
         val requires = allDependencies.value.flatMap { m =>
           if (m.containsConfiguration("compile") || m.containsConfiguration("runtime")) {
             val tpe = if (m.isTransitive) Require.Transitive else Require.Default
-            val require = args.gaToModuleName(m.jmodId(is)) -> tpe
+            val require = args.idToModuleName(m.jmodId(is)) -> tpe
             require +: Nil
           } else Nil
         }.toSet
