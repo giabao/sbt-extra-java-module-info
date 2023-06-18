@@ -26,7 +26,7 @@ object ModuleInfoPlugin extends AutoPlugin {
     DependencyTreeAccess.settings ++ Seq(
       moduleInfos := Nil,
       moduleInfoFailOnMissing := false,
-      Compile / compile := (Compile / compile).dependsOn(genModuleInfoClass).value,
+      Compile / products ++= genModuleInfoClass.value,
       update := {
         val report = update.value
         val log = streams.value.log
@@ -89,7 +89,7 @@ object ModuleInfoPlugin extends AutoPlugin {
   private val genModuleInfoClass = Def.task {
     val f = (Compile / classDirectory).value / "module-info.class"
     val mainCls = (Compile / run / mainClass).value
-    moduleInfo.?.value.foreach { info =>
+    moduleInfo.?.value.map { info =>
       genIfNotExist(f, IO.write(_, moduleInfoClass(info, mainCls)))
     }
   }

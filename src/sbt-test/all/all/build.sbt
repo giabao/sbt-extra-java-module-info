@@ -11,6 +11,9 @@ lazy val all = project
       "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.15.2",
       "org.jetbrains" % "annotations" % "24.0.1" % Provided,
     ),
+    moduleInfo := PlainModuleInfo(
+      "sd.test.all"
+    ),
     moduleInfos := Seq(
       AutomaticModuleName(
         "com.thoughtworks.paranamer:paranamer",
@@ -26,8 +29,11 @@ lazy val all = project
     scriptedScalatestSpec := Some(new AnyFlatSpec with Matchers with ScriptedScalatestSuiteMixin {
       override val sbtState: State = state.value
 
-      "foo" should "bar" in {
-        "hello" mustBe "hello"
+      "ModuleInfoPlugin" should "generate module-info.class" in {
+        val Some((_, Value(ret))) = Project.runTask(Compile / products, sbtState)
+        val f = ret.find(_.name == "module-info.class")
+        assert(f.isDefined)
+        assert(f.get.getParentFile.name == "classes")
       }
     }),
   )
