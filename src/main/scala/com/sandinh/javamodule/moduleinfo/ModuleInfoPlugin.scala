@@ -3,14 +3,19 @@ package com.sandinh.javamodule.moduleinfo
 import sbt.*
 import sbt.Keys.*
 import Utils.*
-import ExtraJavaModuleInfoTransform.{addAutomaticModuleName, addModuleDescriptor}
+import ExtraJavaModuleInfoTransform.{addAutomaticModuleName, addModuleDescriptor, moduleInfoClass}
 import sbt.librarymanagement.Configurations.RuntimeInternal
 import sbt.sandinh.DependencyTreeAccess
 import sbt.sandinh.DependencyTreeAccess.{moduleInfoDepGraph, toDepsMap}
 
 object ModuleInfoPlugin extends AutoPlugin {
   object autoImport {
-    val moduleInfos = settingKey[Seq[ModuleSpec]]("extraJavaModuleInfo")
+    val moduleInfo = settingKey[PlainModuleInfo](
+      "Java module-info to generate module-info.class for this project"
+    )
+    val moduleInfos = settingKey[Seq[ModuleSpec]](
+      "extra Java module-info to patch non-module jar dependencies"
+    )
     val moduleInfoFailOnMissing = settingKey[Boolean](
       "Fail update task if exist non-module jar dependencies and no ModuleSpec is defined for it"
     )
@@ -21,6 +26,7 @@ object ModuleInfoPlugin extends AutoPlugin {
     DependencyTreeAccess.settings ++ Seq(
       moduleInfos := Nil,
       moduleInfoFailOnMissing := false,
+      Compile / compile := (Compile / compile).dependsOn(genModuleInfoClass).value,
       update := {
         val report = update.value
         val log = streams.value.log
@@ -80,6 +86,12 @@ object ModuleInfoPlugin extends AutoPlugin {
       },
     )
 
+  private val genModuleInfoClass = Def.task {
+    val f = (Compile / classDirectory).value / "module-info.class"
+    moduleInfo.?.value.foreach { info =>
+      genIfNotExist(f, IO.write(_, moduleInfoClass(info)))
+    }
+  }
   private def genIfNotExist(f: File, gen: File => Unit) =
     if (f.isFile) f
     else { gen(f); f.ensuring(_.isFile) }

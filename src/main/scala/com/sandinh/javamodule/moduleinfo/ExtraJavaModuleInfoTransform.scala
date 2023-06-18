@@ -120,59 +120,67 @@ object ExtraJavaModuleInfoTransform {
       .toList
       .distinct
 
-  private def addModuleInfo(
-      args: ModuleInfoArgs,
-      moduleInfo: JModuleInfo,
-      providers: Map[String, List[String]],
-      @Nullable version: String,
-      autoExportedPackages: Set[String],
-  ) = {
+  def moduleInfoClass(info: PlainModuleInfo): Array[Byte] = {
     val classWriter = new ClassWriter(0)
     classWriter.visit(Opcodes.V9, Opcodes.ACC_MODULE, "module-info", null, null, null)
-    val openModule = if (moduleInfo.openModule) Opcodes.ACC_OPEN else 0
-    val moduleVersion = Option(moduleInfo.moduleVersion).getOrElse(version)
-    val moduleVisitor = classWriter.visitModule(moduleInfo.moduleName, openModule, moduleVersion)
-    autoExportedPackages.foreach(moduleVisitor.visitExport(_, 0))
-    moduleInfo.exports.map(toSlash).foreach(moduleVisitor.visitExport(_, 0))
-    moduleInfo.opens.map(toSlash).foreach(moduleVisitor.visitOpen(_, 0))
-    moduleVisitor.visitRequire("java.base", 0, null)
-    if (moduleInfo.requireAll) {
-      val compileDeps = args.compileDeps.getOrElse(moduleInfo.id, Set.empty)
-      val runtimeDeps = args.runtimeDeps.getOrElse(moduleInfo.id, Set.empty)
-      if (
-        compileDeps.isEmpty && runtimeDeps.isEmpty &&
-        args.artifacts.forall(_.get(moduleID.key).get.jmodId != moduleInfo.id)
+    val moduleVisitor = classWriter.visitModule(
+      info.moduleName,
+      if (info.openModule) Opcodes.ACC_OPEN else 0,
+      info.moduleVersion
+    )
+    info.exports.map(toSlash).foreach(moduleVisitor.visitExport(_, 0))
+    info.opens.map(toSlash).foreach(moduleVisitor.visitOpen(_, 0))
+//    moduleVisitor.visitRequire("java.base", 0, null)
+    info.requires.foreach { case (module, access) => moduleVisitor.visitRequire(module, access.code, null) }
+    info.uses.map(toSlash).foreach(moduleVisitor.visitUse)
+    info.providers.foreach { case (name, implementations) =>
+      moduleVisitor.visitProvide(
+        toSlash(name),
+        implementations.map(toSlash)*
       )
-        throw new RuntimeException(
-          s"[requires directives from metadata] Cannot find dependencies for '${moduleInfo.moduleName}'. " +
-            s"Are '${moduleInfo.id}' the correct component coordinates?"
-        )
-      for {
-        ga <- compileDeps ++ runtimeDeps
-        if !moduleInfo.mergedJars.contains(ga)
-      } {
-        val moduleName = args.gaToModuleName(ga)
-        if (compileDeps.contains(ga) && runtimeDeps.contains(ga))
-          moduleVisitor.visitRequire(moduleName, Opcodes.ACC_TRANSITIVE, null)
-        else if (runtimeDeps.contains(ga)) moduleVisitor.visitRequire(moduleName, 0, null)
-        else if (compileDeps.contains(ga))
-          moduleVisitor.visitRequire(moduleName, Opcodes.ACC_STATIC_PHASE, null)
-      }
-    }
-    moduleInfo.requires.foreach(moduleVisitor.visitRequire(_, 0, null))
-    moduleInfo.requiresTransitive.foreach(moduleVisitor.visitRequire(_, Opcodes.ACC_TRANSITIVE, null))
-    moduleInfo.requiresStatic.foreach(moduleVisitor.visitRequire(_, Opcodes.ACC_STATIC_PHASE, null))
-    moduleInfo.uses.map(toSlash).foreach(moduleVisitor.visitUse)
-    providers.foreach { case (name, implementations) =>
-      if (!moduleInfo.ignoreServiceProviders.contains(name))
-        moduleVisitor.visitProvide(
-          toSlash(name),
-          implementations.map(toSlash)*
-        )
     }
     moduleVisitor.visitEnd()
     classWriter.visitEnd()
     classWriter.toByteArray
+  }
+
+  private def addModuleInfo(
+      args: ModuleInfoArgs,
+      info: JModuleInfo,
+      providers: Map[String, List[String]],
+      @Nullable version: String,
+      autoExportedPackages: Set[String],
+  ) = {
+    def requires: Set[(String, Require)] = {
+      val compileDeps = args.compileDeps.getOrElse(info.id, Set.empty)
+      val runtimeDeps = args.runtimeDeps.getOrElse(info.id, Set.empty)
+      if (
+        compileDeps.isEmpty && runtimeDeps.isEmpty &&
+        args.artifacts.forall(_.get(moduleID.key).get.jmodId != info.id)
+      )
+        throw new RuntimeException(
+          s"[requires directives from metadata] Cannot find dependencies for '${info.moduleName}'. " +
+            s"Are '${info.id}' the correct component coordinates?"
+        )
+      (for {
+        ga <- compileDeps ++ runtimeDeps
+        if !info.mergedJars.contains(ga)
+      } yield {
+        val moduleName = args.gaToModuleName(ga)
+        if (compileDeps.contains(ga) && runtimeDeps.contains(ga)) List(moduleName -> Require.Transitive)
+        else if (runtimeDeps.contains(ga)) List(moduleName -> Require.Default)
+        else if (compileDeps.contains(ga)) List(moduleName -> Require.Static)
+        else Nil
+      }).flatten
+    }
+    val plain0 = info.toPlainModuleInfo.copy(
+      moduleVersion = Option(info.moduleVersion).getOrElse(version),
+      providers = providers.filterKeys(name => !info.ignoreServiceProviders.contains(name)),
+    )
+    val plain =
+      if (!info.requireAll) plain0
+      else plain0.copy(requires = plain0.requires ++ requires)
+    moduleInfoClass(plain)
   }
 
   private def mergeJars(
