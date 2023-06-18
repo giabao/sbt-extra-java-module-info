@@ -14,11 +14,10 @@ sealed trait ModuleSpec {
   /** the Module Name of the Module to construct */
   def moduleName: String
 
-  /** All merged Jar identifiers
+  /** identifiers like List(org1:name1, org2:name2) of dependencies will be merged to the .jar file of this module.
     * The Java Module System does not allow the same package to be used in more than one module.
     * This is an issue with legacy libraries, where it was common practice to use the same package in multiple Jars.
     * This plugin offers the option to merge multiple Jars into one in such situations.
-    * Format: List(organization1:name1, organization2:name2,..)
     * Note: ignore for `moduleInfo` task
     */
   def mergedJars: List[String]

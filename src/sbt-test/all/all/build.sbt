@@ -34,8 +34,6 @@ lazy val all = project
       JModuleInfo(
         "com.fasterxml.jackson.module:jackson-module-scala_3",
         "com.fasterxml.jackson.scala",
-        requireAllDefinedDependencies = true,
-        exportAllPackages = true,
       ),
     ),
     scriptedScalatestSpec := Some(new AnyFlatSpec with Matchers with ScriptedScalatestSuiteMixin {
