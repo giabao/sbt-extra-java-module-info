@@ -5,13 +5,22 @@ import org.objectweb.asm.Opcodes
 
 sealed trait ModuleSpec {
 
-  /** group:name coordinates */
+  /** Id of this module in format `organization:name`
+    * Note `name` contains the scala version suffix like `_2.13` if this module is a scala depended lib
+    * For `moduleInfo` task, this field will be automatically generated
+    */
   def id: String
 
   /** the Module Name of the Module to construct */
   def moduleName: String
 
-  /** all merged Jar identifiers */
+  /** All merged Jar identifiers
+    * The Java Module System does not allow the same package to be used in more than one module.
+    * This is an issue with legacy libraries, where it was common practice to use the same package in multiple Jars.
+    * This plugin offers the option to merge multiple Jars into one in such situations.
+    * Format: List(organization1:name1, organization2:name2,..)
+    * Note: ignore for `moduleInfo` task
+    */
   def mergedJars: List[String]
 }
 
@@ -29,20 +38,32 @@ final case class AutomaticModuleName(
 ) extends ModuleSpec
 
 final case class JModuleInfo(
+    /** @inheritdoc */
     id: String,
+    /** @inheritdoc */
     moduleName: String,
     @Nullable moduleVersion: String = null,
     openModule: Boolean = true,
     exports: Set[String] = Set.empty,
     opens: Set[String] = Set.empty,
+    /** Ex: requires = Set("org.apache.commons.logging" -> Require.Transitive) */
     requires: Set[(String, Require)] = Set.empty,
     uses: Set[String] = Set.empty,
     providers: Map[String, List[String]] = Map.empty,
+    /** @inheritdoc */
     mergedJars: List[String] = Nil,
+    /** allows you to ignore some unwanted services from being automatically converted into
+      * provides .. with ... declarations
+      * Note: ignore for `moduleInfo` task
+      */
     ignoreServiceProviders: Set[String] = Set.empty,
-    /** Default = true if `requires.isEmpty` */
+    /** Set = true to add `requires (transitive|static)` directives based on dependencies of the project
+      * Note: Default true if `requires.isEmpty`
+      */
     @Nullable private val requireAllDefinedDependencies: java.lang.Boolean = null,
-    /** Default = true if `exports.isEmpty` */
+    /** Set = true to add an `exports` for each package found in the Jar
+      * Note: Default = true if `exports.isEmpty`
+      */
     @Nullable private val exportAllPackages: java.lang.Boolean = null,
 ) extends ModuleSpec {
   def requireAll: Boolean =

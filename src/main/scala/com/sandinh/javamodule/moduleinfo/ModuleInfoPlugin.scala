@@ -24,7 +24,11 @@ object ModuleInfoPlugin extends AutoPlugin {
 
   override def projectSettings: Seq[Setting[?]] =
     DependencyTreeAccess.settings ++ Seq(
-      moduleInfo := moduleInfoTask.value,
+      moduleInfo := JModuleInfo(
+        projectID.value.jmodId(scalaModuleInfo.value),
+        (moduleInfo / moduleName).value,
+        version.value,
+      ),
       moduleInfos := Nil,
       moduleInfoFailOnMissing := false,
       Compile / products += moduleInfoGenClass.value,
@@ -64,9 +68,7 @@ object ModuleInfoPlugin extends AutoPlugin {
                 case None =>
                   if (originalJar.isModule || originalJar.isAutoModule) originalJar
                   else if (!failOnMissing) {
-                    log.warn(
-                      s"Not a module and no mapping defined: $id -> $originalJar"
-                    )
+                    log.warn(s"Not a module and no mapping defined: $id -> $originalJar")
                     originalJar
                   } else
                     sys.error(s"Not a module and no mapping defined: $id -> $originalJar")
@@ -87,29 +89,37 @@ object ModuleInfoPlugin extends AutoPlugin {
       },
     )
 
-  private def moduleInfoTask = Def.task {
-    val args = new ModuleInfoArgs(moduleInfos.value, classpathTypes.value, update.value)
-    val is = scalaModuleInfo.value
-    JModuleInfo(
-      projectID.value.jmodId,
-      (moduleInfo / moduleName).value,
-      version.value,
-      requires = allDependencies.value.flatMap { m =>
-        if (m.containsConfiguration("compile") || m.containsConfiguration("runtime")) {
-          val tpe = if (m.isTransitive) Require.Transitive else Require.Default
-          val require = args.gaToModuleName(m.jmodId(is)) -> tpe
-          require +: Nil
-        } else Nil
-      }.toSet
-    )
-  }
-
-  private def moduleInfoGenClass = Def.task {
-    val f = (Compile / classDirectory).value / "module-info.class"
+  private def moduleInfoGenClass: Def.Initialize[Task[File]] = Def.taskDyn {
+    val classDir = (Compile / classDirectory).value
+    val f = classDir / "module-info.class"
     val mainCls = (Compile / run / mainClass).value
-    val info = moduleInfo.value
-    genIfNotExist(f, IO.write(_, addModuleInfo(info, mainCls)))
+    val info0 = moduleInfo.value
+    val exports =
+      if (!info0.exportAll) info0.exports
+      else
+        PathFinder(classDir)
+          .glob(DirectoryFilter)
+          .globRecursive("*.class")
+          .get()
+          .map { f => IO.relativize(classDir, f.getParentFile).get }
+          .toSet ++ info0.exports
+    val info = info0.copy(exports = exports)
+    Def.taskIf {
+      if (info.requireAll) {
+        val is = scalaModuleInfo.value
+        val args = new ModuleInfoArgs(moduleInfos.value, classpathTypes.value, update.value)
+        val requires = allDependencies.value.flatMap { m =>
+          if (m.containsConfiguration("compile") || m.containsConfiguration("runtime")) {
+            val tpe = if (m.isTransitive) Require.Transitive else Require.Default
+            val require = args.gaToModuleName(m.jmodId(is)) -> tpe
+            require +: Nil
+          } else Nil
+        }.toSet
+        genIfNotExist(f, IO.write(_, addModuleInfo(info.copy(requires = info.requires ++ requires), mainCls)))
+      } else genIfNotExist(f, IO.write(_, addModuleInfo(info, mainCls)))
+    }
   }
+  // TODO cache and re-generate when needed
   private def genIfNotExist(f: File, gen: File => Unit) =
     if (f.isFile) f
     else { gen(f); f.ensuring(_.isFile) }

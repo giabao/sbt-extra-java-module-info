@@ -206,7 +206,7 @@ object ExtraJavaModuleInfoTransform {
       } match {
         case Some(mergeJarFile) =>
           Using.jarInputStream(new JarInputStream(Files.newInputStream(mergeJarFile.toPath))) { jis =>
-            pp = copyAndExtractProviders(jis, outputStream, true, pp)
+            pp = copyAndExtractProviders(jis, outputStream, willMergeJars = true, pp)
           }
         case None => throw new RuntimeException("Jar not found: " + identifier)
       }
