@@ -120,7 +120,7 @@ object ExtraJavaModuleInfoTransform {
       .toList
       .distinct
 
-  def moduleInfoClass(info: PlainModuleInfo): Array[Byte] = {
+  def moduleInfoClass(info: PlainModuleInfo, mainClass: Option[String] = None): Array[Byte] = {
     val classWriter = new ClassWriter(0)
     classWriter.visit(Opcodes.V9, Opcodes.ACC_MODULE, "module-info", null, null, null)
     val moduleVisitor = classWriter.visitModule(
@@ -128,6 +128,7 @@ object ExtraJavaModuleInfoTransform {
       if (info.openModule) Opcodes.ACC_OPEN else 0,
       info.moduleVersion
     )
+    mainClass.foreach(moduleVisitor.visitMainClass)
     info.exports.map(toSlash).foreach(moduleVisitor.visitExport(_, 0))
     info.opens.map(toSlash).foreach(moduleVisitor.visitOpen(_, 0))
 //    moduleVisitor.visitRequire("java.base", 0, null)

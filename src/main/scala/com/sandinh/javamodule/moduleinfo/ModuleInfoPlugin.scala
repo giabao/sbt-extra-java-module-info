@@ -88,8 +88,9 @@ object ModuleInfoPlugin extends AutoPlugin {
 
   private val genModuleInfoClass = Def.task {
     val f = (Compile / classDirectory).value / "module-info.class"
+    val mainCls = (Compile / run / mainClass).value
     moduleInfo.?.value.foreach { info =>
-      genIfNotExist(f, IO.write(_, moduleInfoClass(info)))
+      genIfNotExist(f, IO.write(_, moduleInfoClass(info, mainCls)))
     }
   }
   private def genIfNotExist(f: File, gen: File => Unit) =
