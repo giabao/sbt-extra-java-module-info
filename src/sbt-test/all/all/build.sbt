@@ -2,11 +2,18 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.must.Matchers
 import com.sandinh.javamodule.moduleinfo.*
 
+inThisBuild(
+  Seq(
+    scalaVersion := "3.3.0",
+    organization := "com.sandinh",
+  )
+)
+lazy val sub = project
 lazy val all = project
   .in(file("."))
+  .dependsOn(sub)
   .enablePlugins(ModuleInfoPlugin)
   .settings(
-    scalaVersion := "3.3.0",
     libraryDependencies ++= Seq(
       "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.15.2",
       "org.jetbrains" % "annotations" % "24.0.1" % Provided,

@@ -45,6 +45,7 @@ object ModuleInfoPlugin extends AutoPlugin {
           .configuration(RuntimeInternal)
           .get
           .modules
+          .filter(_.artifacts.nonEmpty)
           .map { mod =>
             val id = mod.module.jmodId
             if (infos.exists(_.mergedJars.contains(id))) id -> Nil
