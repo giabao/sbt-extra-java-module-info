@@ -17,7 +17,7 @@ inThisBuild(
 lazy val root = (project in file("."))
   .enablePlugins(SbtPlugin)
   .settings(
-    name := "extra-java-module-info",
+    name := "sbt-java-module-info",
     pluginCrossBuild / sbtVersion := "1.9.0",
     libraryDependencies ++= Seq(
       "org.jetbrains" % "annotations" % "24.0.1" % Provided,
