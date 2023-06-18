@@ -3,8 +3,9 @@ package com.sandinh.javamodule.moduleinfo
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.ClassReader.*
 import org.objectweb.asm.tree.ClassNode
-import sbt.{File, ModuleID}
+import sbt.{CrossVersion, File, ModuleID}
 import sbt.io.Using
+import sbt.librarymanagement.ScalaModuleInfo
 
 import java.lang.Boolean.parseBoolean
 import java.nio.file.Files
@@ -23,6 +24,12 @@ object Utils {
 
   implicit class ModuleIDOps(val m: ModuleID) extends AnyVal {
     def jmodId: String = s"${m.organization}:${m.name}"
+    def jmodId(is: Option[ScalaModuleInfo]): String =
+      CrossVersion(m, is).getOrElse(identity[String] _)(m.jmodId)
+
+    def containsConfiguration(c: String): Boolean = m.configurations.forall { cs =>
+      cs.split(';').map(_.replace(" ", "")).exists(s => s == c || s.startsWith(s"$c->"))
+    }
   }
 
   implicit class JarInputStreamOps(val jis: JarInputStream) extends AnyVal {

@@ -1,6 +1,7 @@
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.must.Matchers
 import com.sandinh.javamodule.moduleinfo.*
+import com.sandinh.javamodule.moduleinfo.Utils.ModuleIDOps
 
 inThisBuild(
   Seq(
@@ -8,7 +9,9 @@ inThisBuild(
     organization := "com.sandinh",
   )
 )
-lazy val sub = project
+lazy val sub = project.settings(
+  moduleInfo / moduleName := "sd.test.all",
+)
 lazy val all = project
   .in(file("."))
   .dependsOn(sub)
@@ -18,10 +21,12 @@ lazy val all = project
       "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.15.2",
       "org.jetbrains" % "annotations" % "24.0.1" % Provided,
     ),
-    moduleInfo := PlainModuleInfo(
-      "sd.test.all"
-    ),
+    moduleInfo / moduleName := "sd.test.all",
     moduleInfos := Seq(
+      KnownModule(
+        (sub / projectID).value.jmodId(scalaModuleInfo.value),
+        (sub / moduleInfo / moduleName).value
+      ),
       AutomaticModuleName(
         "com.thoughtworks.paranamer:paranamer",
         "paranamer"

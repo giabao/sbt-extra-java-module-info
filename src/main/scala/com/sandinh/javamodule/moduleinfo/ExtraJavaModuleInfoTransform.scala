@@ -44,6 +44,8 @@ object ExtraJavaModuleInfoTransform {
 
   def addModuleDescriptor(
       args: ModuleInfoArgs,
+      compileDepsMap: Map[String, Set[String]],
+      runtimeDepsMap: Map[String, Set[String]],
       originalJar: File,
       moduleJar: File,
       moduleInfo: JModuleInfo,
@@ -58,6 +60,8 @@ object ExtraJavaModuleInfoTransform {
       jos.write(
         addModuleInfo(
           args,
+          compileDepsMap,
+          runtimeDepsMap,
           moduleInfo,
           pp.providers,
           version,
@@ -120,7 +124,7 @@ object ExtraJavaModuleInfoTransform {
       .toList
       .distinct
 
-  def moduleInfoClass(info: PlainModuleInfo, mainClass: Option[String] = None): Array[Byte] = {
+  def addModuleInfo(info: JModuleInfo, mainClass: Option[String] = None): Array[Byte] = {
     val classWriter = new ClassWriter(0)
     classWriter.visit(Opcodes.V9, Opcodes.ACC_MODULE, "module-info", null, null, null)
     val moduleVisitor = classWriter.visitModule(
@@ -147,14 +151,16 @@ object ExtraJavaModuleInfoTransform {
 
   private def addModuleInfo(
       args: ModuleInfoArgs,
+      compileDepsMap: Map[String, Set[String]],
+      runtimeDepsMap: Map[String, Set[String]],
       info: JModuleInfo,
       providers: Map[String, List[String]],
       @Nullable version: String,
       autoExportedPackages: Set[String],
-  ) = {
+  ): Array[Byte] = {
     def requires: Set[(String, Require)] = {
-      val compileDeps = args.compileDeps.getOrElse(info.id, Set.empty)
-      val runtimeDeps = args.runtimeDeps.getOrElse(info.id, Set.empty)
+      val compileDeps = compileDepsMap.getOrElse(info.id, Set.empty)
+      val runtimeDeps = runtimeDepsMap.getOrElse(info.id, Set.empty)
       if (
         compileDeps.isEmpty && runtimeDeps.isEmpty &&
         args.artifacts.forall(_.get(moduleID.key).get.jmodId != info.id)
@@ -174,14 +180,16 @@ object ExtraJavaModuleInfoTransform {
         else Nil
       }).flatten
     }
-    val plain0 = info.toPlainModuleInfo.copy(
-      moduleVersion = Option(info.moduleVersion).getOrElse(version),
-      providers = providers.filterKeys(name => !info.ignoreServiceProviders.contains(name)),
+
+    addModuleInfo(
+      info.copy(
+        moduleVersion = Option(info.moduleVersion).getOrElse(version),
+        providers = providers.filterKeys(name => !info.ignoreServiceProviders.contains(name)),
+        requires =
+          if (!info.requireAll) info.requires
+          else info.requires ++ requires
+      )
     )
-    val plain =
-      if (!info.requireAll) plain0
-      else plain0.copy(requires = plain0.requires ++ requires)
-    moduleInfoClass(plain)
   }
 
   private def mergeJars(
@@ -218,13 +226,7 @@ object ExtraJavaModuleInfoTransform {
     }
 }
 
-private class ModuleInfoArgs(
-    infos: Seq[ModuleSpec],
-    jarTypes: Set[String],
-    up: UpdateReport,
-    val compileDeps: Map[String, Set[String]],
-    val runtimeDeps: Map[String, Set[String]],
-) {
+private class ModuleInfoArgs(infos: Seq[ModuleSpec], jarTypes: Set[String], up: UpdateReport) {
   private lazy val allInfos = infos ++ artifacts.flatMap { a =>
     def id = a.get(moduleID.key).get.jmodId
     a.data.moduleName.toSeq.map(KnownModule(id, _))

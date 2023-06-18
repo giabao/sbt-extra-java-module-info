@@ -3,14 +3,14 @@ package com.sandinh.javamodule.moduleinfo
 import sbt.*
 import sbt.Keys.*
 import Utils.*
-import ExtraJavaModuleInfoTransform.{addAutomaticModuleName, addModuleDescriptor, moduleInfoClass}
+import ExtraJavaModuleInfoTransform.{addAutomaticModuleName, addModuleDescriptor, addModuleInfo}
 import sbt.librarymanagement.Configurations.RuntimeInternal
 import sbt.sandinh.DependencyTreeAccess
 import sbt.sandinh.DependencyTreeAccess.{moduleInfoDepGraph, toDepsMap}
 
 object ModuleInfoPlugin extends AutoPlugin {
   object autoImport {
-    val moduleInfo = settingKey[PlainModuleInfo](
+    val moduleInfo = taskKey[JModuleInfo](
       "Java module-info to generate module-info.class for this project"
     )
     val moduleInfos = settingKey[Seq[ModuleSpec]](
@@ -24,9 +24,10 @@ object ModuleInfoPlugin extends AutoPlugin {
 
   override def projectSettings: Seq[Setting[?]] =
     DependencyTreeAccess.settings ++ Seq(
+      moduleInfo := moduleInfoTask.value,
       moduleInfos := Nil,
       moduleInfoFailOnMissing := false,
-      Compile / products ++= genModuleInfoClass.value,
+      Compile / products += moduleInfoGenClass.value,
       update := {
         val report = update.value
         val log = streams.value.log
@@ -34,13 +35,9 @@ object ModuleInfoPlugin extends AutoPlugin {
         val out = target.value / "moduleInfo"
         out.mkdirs()
         val failOnMissing = moduleInfoFailOnMissing.value
-        val args = new ModuleInfoArgs(
-          infos,
-          classpathTypes.value,
-          report,
-          toDepsMap((Compile / moduleInfoDepGraph).value),
-          toDepsMap((Runtime / moduleInfoDepGraph).value)
-        )
+        val args = new ModuleInfoArgs(infos, classpathTypes.value, report)
+        val compileDepsMap = toDepsMap((Compile / moduleInfoDepGraph).value)
+        val runtimeDepsMap = toDepsMap((Runtime / moduleInfoDepGraph).value)
         val remapped = report
           .configuration(RuntimeInternal)
           .get
@@ -55,7 +52,10 @@ object ModuleInfoPlugin extends AutoPlugin {
               val remappedJar = infos.find(_.id == id) match {
                 case Some(_: KnownModule) => originalJar
                 case Some(moduleInfo: JModuleInfo) =>
-                  genIfNotExist(moduleJar, addModuleDescriptor(args, originalJar, _, moduleInfo))
+                  genIfNotExist(
+                    moduleJar,
+                    addModuleDescriptor(args, compileDepsMap, runtimeDepsMap, originalJar, _, moduleInfo)
+                  )
                 case Some(moduleSpec: AutomaticModuleName) =>
                   genIfNotExist(
                     moduleJar,
@@ -87,12 +87,28 @@ object ModuleInfoPlugin extends AutoPlugin {
       },
     )
 
-  private val genModuleInfoClass = Def.task {
+  private def moduleInfoTask = Def.task {
+    val args = new ModuleInfoArgs(moduleInfos.value, classpathTypes.value, update.value)
+    val is = scalaModuleInfo.value
+    JModuleInfo(
+      projectID.value.jmodId,
+      (moduleInfo / moduleName).value,
+      version.value,
+      requires = allDependencies.value.flatMap { m =>
+        if (m.containsConfiguration("compile") || m.containsConfiguration("runtime")) {
+          val tpe = if (m.isTransitive) Require.Transitive else Require.Default
+          val require = args.gaToModuleName(m.jmodId(is)) -> tpe
+          require +: Nil
+        } else Nil
+      }.toSet
+    )
+  }
+
+  private def moduleInfoGenClass = Def.task {
     val f = (Compile / classDirectory).value / "module-info.class"
     val mainCls = (Compile / run / mainClass).value
-    moduleInfo.?.value.map { info =>
-      genIfNotExist(f, IO.write(_, moduleInfoClass(info, mainCls)))
-    }
+    val info = moduleInfo.value
+    genIfNotExist(f, IO.write(_, addModuleInfo(info, mainCls)))
   }
   private def genIfNotExist(f: File, gen: File => Unit) =
     if (f.isFile) f
