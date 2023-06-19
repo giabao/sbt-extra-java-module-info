@@ -13,16 +13,9 @@ import java.util.jar.{JarEntry, JarInputStream, JarOutputStream, Manifest}
 import scala.collection.compat.immutable.LazyList
 
 object Utils {
-  def usingJos[R](jar: File, man: Manifest = null)(f: JarOutputStream => R): R =
-    Using.resource { (f: File) =>
-      val out = Files.newOutputStream(f.toPath)
-      if (man == null) new JarOutputStream(out)
-      else new JarOutputStream(out, man)
-    }(jar)(f)
-
   def toSlash(fqdn: String): String = fqdn.replace('.', '/')
 
-  implicit class ModuleIDOps(val m: ModuleID) extends AnyVal {
+  implicit final class ModuleIDOps(val m: ModuleID) extends AnyVal {
     def jmodId: String = s"${m.organization}:${m.name}"
     def jmodId(is: Option[ScalaModuleInfo]): String =
       CrossVersion(m, is).getOrElse(identity[String] _)(m.jmodId)
@@ -32,7 +25,7 @@ object Utils {
     }
   }
 
-  implicit class JarInputStreamOps(val jis: JarInputStream) extends AnyVal {
+  implicit final class JarInputStreamOps(val jis: JarInputStream) extends AnyVal {
     def isMultiReleaseJar: Boolean = {
       val man = jis.getManifest
       man != null && parseBoolean(man.getMainAttributes.getValue("Multi-Release"))
@@ -51,15 +44,36 @@ object Utils {
 
   private val ModuleInfoClassMjarPath = "META-INF/versions/\\d+/module-info.class".r.pattern
 
-  implicit class JarFileOps(val jar: File) extends AnyVal {
-    def isAutoModule: Boolean = Using.jarInputStream(Files.newInputStream(jar.toPath)) { jis =>
-      val man = jis.getManifest
-      man != null && man.getMainAttributes.getValue(
-        "Automatic-Module-Name"
-      ) != null
+  implicit final class ManifestOps(val m: Manifest) extends AnyVal {
+    def autoModuleName: Option[String] = Option(m.getMainAttributes.getValue("Automatic-Module-Name"))
+    def isMultiRelease: Boolean = parseBoolean(m.getMainAttributes.getValue("Multi-Release"))
+  }
+
+  implicit final class JarFileOps(val jar: File) extends AnyVal {
+    def jarInputStream[R](f: JarInputStream => R): R =
+      Using.jarInputStream(Files.newInputStream(jar.toPath))(f)
+
+    def jarOutputStream[R](man: Manifest = null)(f: JarOutputStream => R): R =
+      Using.resource { (f: File) =>
+        val out = Files.newOutputStream(f.toPath)
+        if (man == null) new JarOutputStream(out)
+        else new JarOutputStream(out, man)
+      }(jar)(f)
+
+    def isAutoModule: Boolean = jarInputStream { jis =>
+      Option(jis.getManifest).flatMap(_.autoModuleName).isDefined
     }
 
-    def isModule: Boolean = Using.jarInputStream(Files.newInputStream(jar.toPath)) { jis =>
+    def addAutoModuleName(moduleName: String): File = {
+      val man = jarInputStream { jis =>
+        val m = jis.getOrCreateManifest
+        m.getMainAttributes.putValue("Automatic-Module-Name", moduleName)
+        m
+      }
+      jarOutputStream(man)(_ => jar)
+    }
+
+    def isModule: Boolean = jarInputStream { jis =>
       val isMultiReleaseJar = jis.isMultiReleaseJar
       jis.lazyList.map(_.getName).exists {
         case "module-info.class" => true
@@ -67,17 +81,12 @@ object Utils {
       }
     }
 
-    def moduleName: Option[String] = Using.jarInputStream(Files.newInputStream(jar.toPath)) { jis =>
+    def moduleName: Option[String] = jarInputStream { jis =>
       val man = Option(jis.getManifest)
       man
-        .flatMap { m =>
-          Option(m.getMainAttributes.getValue("Automatic-Module-Name"))
-        }
+        .flatMap(_.autoModuleName)
         .orElse {
-          val isMultiReleaseJar = man.fold(false) { m =>
-            parseBoolean(m.getMainAttributes.getValue("Multi-Release"))
-          }
-
+          val isMultiReleaseJar = man.fold(false)(_.isMultiRelease)
           jis.lazyList
             .find { e =>
               e.getName == "module-info.class" ||

@@ -27,10 +27,10 @@ object ExtraJavaModuleInfoTransform {
       originalJar: File,
       moduleJar: File,
       automaticModule: AutomaticModuleName
-  ): Unit = Using.jarInputStream(Files.newInputStream(originalJar.toPath)) { jis =>
+  ): Unit = originalJar.jarInputStream { jis =>
     val man = jis.getOrCreateManifest
     man.getMainAttributes.putValue("Automatic-Module-Name", automaticModule.moduleName)
-    usingJos(moduleJar, man) { jos =>
+    moduleJar.jarOutputStream(man) { jos =>
       val pp = copyAndExtractProviders(jis, jos, automaticModule.mergedJars.nonEmpty, PP.empty)
       mergeJars(artifacts, automaticModule, jos, pp)
     }
@@ -43,8 +43,8 @@ object ExtraJavaModuleInfoTransform {
       originalJar: File,
       moduleJar: File,
       moduleInfo: JModuleInfo,
-  ): Unit = Using.jarInputStream(Files.newInputStream(originalJar.toPath)) { jis =>
-    usingJos(moduleJar, jis.getManifest) { jos =>
+  ): Unit = originalJar.jarInputStream { jis =>
+    moduleJar.jarOutputStream(jis.getManifest) { jos =>
       var pp = copyAndExtractProviders(jis, jos, moduleInfo.mergedJars.nonEmpty, PP.empty)
       pp = mergeJars(args.artifacts, moduleInfo, jos, pp)
       jos.putNextEntry(new JarEntry("module-info.class"))
@@ -199,7 +199,7 @@ object ExtraJavaModuleInfoTransform {
         case a if a.get(moduleID.key).get.jmodId == identifier => a.data
       } match {
         case Some(mergeJarFile) =>
-          Using.jarInputStream(new JarInputStream(Files.newInputStream(mergeJarFile.toPath))) { jis =>
+          mergeJarFile.jarInputStream { jis =>
             pp = copyAndExtractProviders(jis, outputStream, willMergeJars = true, pp)
           }
         case None => throw new RuntimeException("Jar not found: " + identifier)
