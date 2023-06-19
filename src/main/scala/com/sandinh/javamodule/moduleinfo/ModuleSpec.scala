@@ -29,6 +29,16 @@ final case class KnownModule(
 ) extends ModuleSpec {
   def mergedJars: List[String] = Nil
 }
+object KnownModule {
+  import sbt.*, Keys.*
+  import Utils.ModuleIDOps, ModuleInfoPlugin.autoImport.moduleInfo
+  def of(p: Project): Def.Initialize[KnownModule] = Def.setting(
+    KnownModule(
+      (p / projectID).value.jmodId((ThisProject / scalaModuleInfo).value),
+      (p / moduleInfo / moduleName).value
+    )
+  )
+}
 
 final case class AutomaticModuleName(
     id: String,

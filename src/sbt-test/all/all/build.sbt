@@ -23,10 +23,7 @@ lazy val all = project
     ),
     moduleInfo / moduleName := "sd.test.all",
     moduleInfos := Seq(
-      KnownModule(
-        (sub / projectID).value.jmodId(scalaModuleInfo.value),
-        (sub / moduleInfo / moduleName).value
-      ),
+      KnownModule.of(sub).value,
       AutomaticModuleName(
         "com.thoughtworks.paranamer:paranamer",
         "paranamer"
