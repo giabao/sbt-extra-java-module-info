@@ -1,7 +1,7 @@
 inThisBuild(
   Seq(
     organization := "com.sandinh",
-    versionScheme := Some("semver-spec"),
+    versionScheme := Some("early-semver"),
     developers := List(
       Developer(
         "thanhbv",
@@ -10,7 +10,8 @@ inThisBuild(
         url("https://sandinh.com")
       )
     ),
-    scalaVersion := "2.12.18"
+    licenses := Seq("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt")),
+    scalaVersion := "2.12.18",
   )
 )
 
