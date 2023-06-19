@@ -14,7 +14,7 @@ inThisBuild(
     scalaVersion := "2.12.18",
   )
 )
-
+val scalatestV = "3.2.16"
 lazy val root = (project in file("."))
   .enablePlugins(SbtPlugin)
   .settings(
@@ -23,9 +23,11 @@ lazy val root = (project in file("."))
     libraryDependencies ++= Seq(
       "org.jetbrains" % "annotations" % "24.0.1" % Provided,
       "org.ow2.asm" % "asm-tree" % "9.5",
+      "org.scalatest" %% "scalatest-flatspec" % scalatestV % Test,
+      "org.scalatest" %% "scalatest-mustmatchers" % scalatestV % Test,
     ),
     scriptedScalatestDependencies ++= Seq(
-      "org.scalatest::scalatest-flatspec:3.2.16",
-      "org.scalatest::scalatest-mustmatchers:3.2.16",
+      s"org.scalatest::scalatest-flatspec:$scalatestV",
+      s"org.scalatest::scalatest-mustmatchers:$scalatestV",
     ),
   )
