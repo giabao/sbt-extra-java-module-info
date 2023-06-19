@@ -39,6 +39,14 @@ object Utils {
     }
 
     def lazyList: LazyList[JarEntry] = LazyList.continually(jis.getNextJarEntry).takeWhile(_ != null)
+
+    def getOrCreateManifest: Manifest = jis.getManifest match {
+      case null =>
+        val m = new Manifest
+        m.getMainAttributes.putValue("Manifest-Version", "1.0")
+        m
+      case m => m
+    }
   }
 
   private val ModuleInfoClassMjarPath = "META-INF/versions/\\d+/module-info.class".r.pattern

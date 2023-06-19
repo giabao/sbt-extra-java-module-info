@@ -28,13 +28,7 @@ object ExtraJavaModuleInfoTransform {
       moduleJar: File,
       automaticModule: AutomaticModuleName
   ): Unit = Using.jarInputStream(Files.newInputStream(originalJar.toPath)) { jis =>
-    val man = jis.getManifest match {
-      case null =>
-        val m = new Manifest
-        m.getMainAttributes.putValue("Manifest-Version", "1.0")
-        m
-      case m => m
-    }
+    val man = jis.getOrCreateManifest
     man.getMainAttributes.putValue("Automatic-Module-Name", automaticModule.moduleName)
     usingJos(moduleJar, man) { jos =>
       val pp = copyAndExtractProviders(jis, jos, automaticModule.mergedJars.nonEmpty, PP.empty)
