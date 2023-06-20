@@ -51,10 +51,7 @@ object ExtraJavaModuleInfoTransform {
         compileDeps.isEmpty && runtimeDeps.isEmpty &&
         args.artifacts.forall(_.get(moduleID.key).get.jmodId != info.id)
       )
-        throw new RuntimeException(
-          s"[requires directives from metadata] Cannot find dependencies for '${info.moduleName}'. " +
-            s"Are '${info.id}' the correct component coordinates?"
-        )
+        throw new RuntimeException(s"Cannot find dependencies for '${info.moduleName}'")
       (for {
         id <- compileDeps ++ runtimeDeps
         if !info.mergedJars.contains(id)
