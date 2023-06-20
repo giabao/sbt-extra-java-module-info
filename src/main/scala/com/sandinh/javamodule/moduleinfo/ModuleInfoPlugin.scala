@@ -55,15 +55,15 @@ object ModuleInfoPlugin extends AutoPlugin {
               val moduleJar = out / originalJar.name
               val remappedJar = infos.find(_.id == id) match {
                 case Some(_: KnownModule) => originalJar
-                case Some(moduleInfo: JModuleInfo) =>
+                case Some(info: JModuleInfo) =>
                   genIfNotExist(
                     moduleJar,
-                    addModuleDescriptor(args, compileDepsMap, runtimeDepsMap, originalJar, _, moduleInfo)
+                    addModuleDescriptor(args, compileDepsMap, runtimeDepsMap, originalJar, _, info)
                   )
-                case Some(moduleSpec: AutomaticModuleName) =>
+                case Some(info: AutomaticModuleName) =>
                   genIfNotExist(
                     moduleJar,
-                    addAutomaticModuleName(args.artifacts, originalJar, _, moduleSpec)
+                    addAutomaticModuleName(args.artifacts, originalJar, _, info)
                   )
                 case None =>
                   if (originalJar.isModule || originalJar.isAutoModule) originalJar
