@@ -25,6 +25,13 @@ object Utils {
     }
   }
 
+  implicit final class JarOutputStreamOps(val jos: JarOutputStream) extends AnyVal {
+    def addModuleInfo(info: JModuleInfo): Unit = {
+      jos.putNextEntry(new JarEntry("module-info.class"))
+      jos.write(info.toModuleInfoClass)
+      jos.closeEntry()
+    }
+  }
   implicit final class JarInputStreamOps(val jis: JarInputStream) extends AnyVal {
     def isMultiReleaseJar: Boolean = {
       val man = jis.getManifest

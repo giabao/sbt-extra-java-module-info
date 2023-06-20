@@ -42,27 +42,50 @@ object ExtraJavaModuleInfoTransform {
       runtimeDepsMap: Map[String, Set[String]],
       originalJar: File,
       moduleJar: File,
-      moduleInfo: JModuleInfo,
-  ): Unit = originalJar.jarInputStream { jis =>
-    moduleJar.jarOutputStream(jis.getManifest) { jos =>
-      var pp = copyAndExtractProviders(jis, jos, moduleInfo.mergedJars.nonEmpty, PP.empty)
-      pp = mergeJars(args.artifacts, moduleInfo, jos, pp)
-      jos.putNextEntry(new JarEntry("module-info.class"))
-      val version = args.artifacts.collectFirst {
-        case a if a.data == originalJar => a.get(moduleID.key).get.revision
-      }.orNull
-      jos.write(
-        addModuleInfo(
-          args,
-          compileDepsMap,
-          runtimeDepsMap,
-          moduleInfo,
-          pp.providers,
-          version,
-          if (moduleInfo.exportAll) pp.packages else Set.empty
-        )
+      info: JModuleInfo,
+  ): Unit = {
+    def requires: Set[(String, Require)] = {
+      val compileDeps = compileDepsMap.getOrElse(info.id, Set.empty)
+      val runtimeDeps = runtimeDepsMap.getOrElse(info.id, Set.empty)
+      if (
+        compileDeps.isEmpty && runtimeDeps.isEmpty &&
+        args.artifacts.forall(_.get(moduleID.key).get.jmodId != info.id)
       )
-      jos.closeEntry()
+        throw new RuntimeException(
+          s"[requires directives from metadata] Cannot find dependencies for '${info.moduleName}'. " +
+            s"Are '${info.id}' the correct component coordinates?"
+        )
+      (for {
+        id <- compileDeps ++ runtimeDeps
+        if !info.mergedJars.contains(id)
+      } yield {
+        val moduleName = args.idToModuleName(id)
+        if (compileDeps.contains(id) && runtimeDeps.contains(id)) List(moduleName -> Require.Transitive)
+        else if (runtimeDeps.contains(id)) List(moduleName -> Require.Default)
+        else if (compileDeps.contains(id)) List(moduleName -> Require.Static)
+        else Nil
+      }).flatten
+    }
+    def versionFromArts = args.artifacts.collectFirst {
+      case a if a.data == originalJar => a.get(moduleID.key).get.revision
+    }
+    originalJar.jarInputStream { jis =>
+      moduleJar.jarOutputStream(jis.getManifest) { jos =>
+        var pp = copyAndExtractProviders(jis, jos, info.mergedJars.nonEmpty, PP.empty)
+        pp = mergeJars(args.artifacts, info, jos, pp)
+        jos.addModuleInfo(
+          info.copy(
+            moduleVersion = Option(info.moduleVersion).orElse(versionFromArts).orNull,
+            providers = pp.providers.filterKeys(name => !info.ignoreServiceProviders.contains(name)),
+            requires =
+              if (!info.requireAll) info.requires
+              else info.requires ++ requires,
+            exports =
+              if (!info.exportAll) info.exports
+              else info.exports ++ pp.packages
+          ),
+        )
+      }
     }
   }
 
@@ -117,74 +140,6 @@ object ExtraJavaModuleInfoTransform {
       .filter { line => line.nonEmpty && !line.startsWith("#") }
       .toList
       .distinct
-
-  def addModuleInfo(info: JModuleInfo, mainClass: Option[String] = None): Array[Byte] = {
-    val classWriter = new ClassWriter(0)
-    classWriter.visit(Opcodes.V9, Opcodes.ACC_MODULE, "module-info", null, null, null)
-    val moduleVisitor = classWriter.visitModule(
-      info.moduleName,
-      if (info.openModule) Opcodes.ACC_OPEN else 0,
-      info.moduleVersion
-    )
-    mainClass.foreach(moduleVisitor.visitMainClass)
-    info.exports.map(toSlash).foreach(moduleVisitor.visitExport(_, 0))
-    info.opens.map(toSlash).foreach(moduleVisitor.visitOpen(_, 0))
-//    moduleVisitor.visitRequire("java.base", 0, null)
-    info.requires.foreach { case (module, access) => moduleVisitor.visitRequire(module, access.code, null) }
-    info.uses.map(toSlash).foreach(moduleVisitor.visitUse)
-    info.providers.foreach { case (name, implementations) =>
-      moduleVisitor.visitProvide(
-        toSlash(name),
-        implementations.map(toSlash)*
-      )
-    }
-    moduleVisitor.visitEnd()
-    classWriter.visitEnd()
-    classWriter.toByteArray
-  }
-
-  private def addModuleInfo(
-      args: ModuleInfoArgs,
-      compileDepsMap: Map[String, Set[String]],
-      runtimeDepsMap: Map[String, Set[String]],
-      info: JModuleInfo,
-      providers: Map[String, List[String]],
-      @Nullable version: String,
-      autoExportedPackages: Set[String],
-  ): Array[Byte] = {
-    def requires: Set[(String, Require)] = {
-      val compileDeps = compileDepsMap.getOrElse(info.id, Set.empty)
-      val runtimeDeps = runtimeDepsMap.getOrElse(info.id, Set.empty)
-      if (
-        compileDeps.isEmpty && runtimeDeps.isEmpty &&
-        args.artifacts.forall(_.get(moduleID.key).get.jmodId != info.id)
-      )
-        throw new RuntimeException(
-          s"[requires directives from metadata] Cannot find dependencies for '${info.moduleName}'. " +
-            s"Are '${info.id}' the correct component coordinates?"
-        )
-      (for {
-        ga <- compileDeps ++ runtimeDeps
-        if !info.mergedJars.contains(ga)
-      } yield {
-        val moduleName = args.idToModuleName(ga)
-        if (compileDeps.contains(ga) && runtimeDeps.contains(ga)) List(moduleName -> Require.Transitive)
-        else if (runtimeDeps.contains(ga)) List(moduleName -> Require.Default)
-        else if (compileDeps.contains(ga)) List(moduleName -> Require.Static)
-        else Nil
-      }).flatten
-    }
-
-    addModuleInfo(
-      info.copy(
-        moduleVersion = Option(info.moduleVersion).getOrElse(version),
-        providers = providers.filterKeys(name => !info.ignoreServiceProviders.contains(name)),
-        requires =
-          if (!info.requireAll) info.requires
-          else info.requires ++ requires
-      )
-    )
-  }
 
   private def mergeJars(
       artifacts: Classpath,

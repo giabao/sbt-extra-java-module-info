@@ -1,7 +1,8 @@
 package com.sandinh.javamodule.moduleinfo
 
+import com.sandinh.javamodule.moduleinfo.Utils.toSlash
 import org.jetbrains.annotations.Nullable
-import org.objectweb.asm.Opcodes
+import org.objectweb.asm.{ClassWriter, Opcodes}
 
 sealed trait ModuleSpec {
 
@@ -59,6 +60,7 @@ final case class JModuleInfo(
     requires: Set[(String, Require)] = Set.empty,
     uses: Set[String] = Set.empty,
     providers: Map[String, List[String]] = Map.empty,
+    mainClass: Option[String] = None,
     /** @inheritdoc */
     mergedJars: List[String] = Nil,
     /** allows you to ignore some unwanted services from being automatically converted into
@@ -82,6 +84,31 @@ final case class JModuleInfo(
   def exportAll: Boolean =
     if (exportAllPackages != null) exportAllPackages
     else exports.isEmpty
+
+  def toModuleInfoClass: Array[Byte] = {
+    val cw = new ClassWriter(0)
+    cw.visit(Opcodes.V9, Opcodes.ACC_MODULE, "module-info", null, null, null)
+    val moduleVisitor = cw.visitModule(
+      moduleName,
+      if (openModule) Opcodes.ACC_OPEN else 0,
+      moduleVersion
+    )
+    mainClass.foreach(moduleVisitor.visitMainClass)
+    exports.map(toSlash).foreach(moduleVisitor.visitExport(_, 0))
+    opens.map(toSlash).foreach(moduleVisitor.visitOpen(_, 0))
+    //    moduleVisitor.visitRequire("java.base", 0, null)
+    requires.foreach { case (module, access) => moduleVisitor.visitRequire(module, access.code, null) }
+    uses.map(toSlash).foreach(moduleVisitor.visitUse)
+    providers.foreach { case (name, implementations) =>
+      moduleVisitor.visitProvide(
+        toSlash(name),
+        implementations.map(toSlash)*
+      )
+    }
+    moduleVisitor.visitEnd()
+    cw.visitEnd()
+    cw.toByteArray
+  }
 }
 
 sealed trait Require {
