@@ -12,11 +12,11 @@ addSbtPlugin("com.sandinh" % "sbt-java-module-info" % sbt-java-module-info-versi
 // which are stored in target/moduleInfo directory
 Global / moduleInfos := Seq(
   // Add `Automatic-Module-Name: paranamer` to paranamer.jar/META-INF/MANIFEST.MF
-  AutomaticModuleName(
+  AutomaticModule(
     "com.thoughtworks.paranamer:paranamer", // id in format org:name
     "paranamer" // module name
   ),
-  AutomaticModuleName("org.slf4j:slf4j-api", "org.slf4j",
+  AutomaticModule("org.slf4j:slf4j-api", "org.slf4j",
     /** identifiers like List(org1:name1, org2:name2) of dependencies will be merged to the .jar file of this module.
      * The Java Module System does not allow the same package to be used in more than one module.
      * This is an issue with legacy libraries, where it was common practice to use the same package in multiple Jars.
@@ -26,7 +26,7 @@ Global / moduleInfos := Seq(
     mergeJars = List("org.slf4j:slf4j-ext")
   ),
   // Generate and add module-info.class to jackson-module-scala_3.jar to transform it to a module
-  JModuleInfo(
+  JpmsModule(
     "com.fasterxml.jackson.module:jackson-module-scala_3",
     "com.fasterxml.jackson.scala",
     // other fields as above:
@@ -43,7 +43,7 @@ Global / moduleInfos := Seq(
 ```sbt
 lazy val foo = project.enablePlugins(ModuleInfoPlugin).settings(
   // Use this to generate module-info.class
-  moduleInfo := JModuleInfo(
+  moduleInfo := JpmsModule(
     "com.my.foo.module.name", // foo's moduleName
     openModule = false, // If you don't want to open module com.my.foo.module.name
     exports = Set("com.package1", "org.foo.bar"),
@@ -61,12 +61,12 @@ lazy val foo = project.enablePlugins(ModuleInfoPlugin).settings(
 ).dependsOn(baz)
 lazy val baz = project.enablePlugins(ModuleInfoPlugin).settings(
   // Use this to set Automatic-Module-Name field in MANIFEST.MF
-  moduleInfo := AutomaticModuleName("com.my.baz.module.name")
+  moduleInfo := AutomaticModule("com.my.baz.module.name")
 )
 ```
 4. Done
 This plugin will update the following sbt tasks:
-+ `products` --> will also create module-info.class for your project if moduleInfo := JModuleInfo(..)
++ `products` --> will also create module-info.class for your project if moduleInfo is a JpmsModule
   (so `Compile/packageBin` will package it into your jar)
 + `Compile / packageBin / packageOptions` --> will add `ManifestAttributes("Automatic-Module-Name" -> moduleName)`
 + `update` --> will transform the legacy .jar files of your libraryDependencies

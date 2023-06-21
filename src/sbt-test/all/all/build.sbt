@@ -10,8 +10,8 @@ inThisBuild(
   )
 )
 Global / moduleInfos := Seq(
-  AutomaticModuleName("paranamer", "com.thoughtworks.paranamer:paranamer"),
-  JModuleInfo(
+  AutomaticModule("paranamer", "com.thoughtworks.paranamer:paranamer"),
+  JpmsModule(
     "com.fasterxml.jackson.scala",
     "com.fasterxml.jackson.module:jackson-module-scala_3",
   ),
@@ -23,7 +23,7 @@ Global / excludeLintKeys += moduleInfo
 lazy val sub = project
 //  .enablePlugins(ModuleInfoPlugin)
   .settings(
-    moduleInfo := AutomaticModuleName("sd.test.sub"),
+    moduleInfo := AutomaticModule("sd.test.sub"),
   )
 lazy val root = project
   .in(file("."))
@@ -34,7 +34,7 @@ lazy val root = project
       "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.15.2",
       "org.jetbrains" % "annotations" % "24.0.1" % Provided,
     ),
-    moduleInfo := JModuleInfo("sd.test.root"),
+    moduleInfo := JpmsModule("sd.test.root"),
     scriptedScalatestSpec := Some(new AnyFlatSpec with Matchers with ScriptedScalatestSuiteMixin {
       override val sbtState: State = state.value
 

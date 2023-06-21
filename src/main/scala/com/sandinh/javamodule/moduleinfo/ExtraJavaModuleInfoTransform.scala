@@ -26,7 +26,7 @@ object ExtraJavaModuleInfoTransform {
       artifacts: Classpath,
       originalJar: File,
       moduleJar: File,
-      automaticModule: AutomaticModuleName
+      automaticModule: AutomaticModule
   ): Unit = originalJar.jarInputStream { jis =>
     val man = jis.getOrCreateManifest
     man.getMainAttributes.putValue("Automatic-Module-Name", automaticModule.moduleName)
@@ -42,7 +42,7 @@ object ExtraJavaModuleInfoTransform {
       runtimeDepsMap: Map[String, Set[String]],
       originalJar: File,
       moduleJar: File,
-      info: JModuleInfo,
+      info: JpmsModule,
   ): Unit = {
     def requires: Set[(String, Require)] = {
       val compileDeps = compileDepsMap.getOrElse(info.id, Set.empty)
@@ -182,10 +182,10 @@ private class ModuleInfoArgs(infos: Seq[ModuleSpec], jarTypes: Set[String], up: 
     id,
     throw new RuntimeException(
       s"""The module name of the following dependency is not known: $id
-       | - If it is an external legacy dependency, patch it to a 'JModuleInfo' or 'AutomaticModuleName', eg:
-       |   `Global / moduleInfos += JModuleInfo("paranamer", "com.thoughtworks.paranamer:paranamer")`
+       | - If it is an external legacy dependency, patch it to a 'JpmsModule' or 'AutomaticModule', eg:
+       |   `Global / moduleInfos += JpmsModule("paranamer", "com.thoughtworks.paranamer:paranamer")`
        | - If it is your own sbt project, eg `myPrj`, set moduleInfo for it, eg:
-       |   `myPrj = project.settings(moduleInfo := AutomaticModuleName("com.myprj"))`""".stripMargin
+       |   `myPrj = project.settings(moduleInfo := AutomaticModule("com.myprj"))`""".stripMargin
     )
   )
   // @see managedClasspath

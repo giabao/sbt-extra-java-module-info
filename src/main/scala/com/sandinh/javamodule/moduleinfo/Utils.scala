@@ -28,7 +28,7 @@ object Utils {
   }
 
   implicit final class JarOutputStreamOps(val jos: JarOutputStream) extends AnyVal {
-    def addModuleInfo(info: JModuleInfo): Unit = {
+    def addModuleInfo(info: JpmsModule): Unit = {
       jos.putNextEntry(new JarEntry("module-info.class"))
       jos.write(info.toModuleInfoClass)
       jos.closeEntry()

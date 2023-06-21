@@ -37,8 +37,7 @@ final case class KnownModule(
   def withDefaultId(@NotNull id: String): KnownModule = if (this.id != null) this else copy(id = id)
 }
 
-// TODO rename
-final case class AutomaticModuleName(
+final case class AutomaticModule(
     /** @inheritdoc */
     moduleName: String,
     /** @inheritdoc */
@@ -46,11 +45,10 @@ final case class AutomaticModuleName(
     /** @inheritdoc */
     mergedJars: List[String] = Nil,
 ) extends ModuleSpec {
-  def withDefaultId(@NotNull id: String): AutomaticModuleName = if (this.id != null) this else copy(id = id)
+  def withDefaultId(@NotNull id: String): AutomaticModule = if (this.id != null) this else copy(id = id)
 }
 
-// TODO rename
-final case class JModuleInfo(
+final case class JpmsModule(
     /** @inheritdoc */
     moduleName: String,
     /** @inheritdoc */
@@ -113,7 +111,7 @@ final case class JModuleInfo(
     cw.toByteArray
   }
 
-  def withDefaultId(@NotNull id: String): JModuleInfo = if (this.id != null) this else copy(id = id)
+  def withDefaultId(@NotNull id: String): JpmsModule = if (this.id != null) this else copy(id = id)
 }
 
 sealed trait Require {

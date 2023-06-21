@@ -14,7 +14,7 @@ import sbt.sandinh.DependencyTreeAccess.{moduleInfoDepGraph, toDepsMap}
 object ModuleInfoPlugin extends AutoPlugin {
   object autoImport {
     val moduleInfo = settingKey[ModuleSpec](
-      "JModuleInfo or AutomaticModuleName used to generate module-info.class or set Automatic-Module-Name field in MANIFEST.MF for this project"
+      "JpmsModule or AutomaticModule used to generate module-info.class or set Automatic-Module-Name field in MANIFEST.MF for this project"
     )
     val moduleInfos = settingKey[Seq[ModuleSpec]](
       "extra Java module-info to patch non-module jar dependencies"
@@ -32,7 +32,7 @@ object ModuleInfoPlugin extends AutoPlugin {
 
   override def projectSettings: Seq[Setting[?]] = DependencyTreeAccess.settings ++ Seq(
     Compile / packageBin / packageOptions ++= (moduleInfo.value match {
-      case AutomaticModuleName(moduleName, _, _) =>
+      case AutomaticModule(moduleName, _, _) =>
         ManifestAttributes("Automatic-Module-Name" -> moduleName) +: Nil
       case _ => Nil
     }),
@@ -86,14 +86,14 @@ object ModuleInfoPlugin extends AutoPlugin {
             val moduleJar = out / originalJar.name
             val remappedJar = infos.find(_.id == id) match {
               case Some(_: KnownModule) => originalJar
-              case Some(info: JModuleInfo) =>
+              case Some(info: JpmsModule) =>
                 if (originalJar.jpmsModuleName.isDefined)
                   log.warn(s"Already be a jpms module $id -> $originalJar")
                 genIfNotExist(
                   moduleJar,
                   addModuleDescriptor(args, compileDepsMap, runtimeDepsMap, originalJar, _, info)
                 )
-              case Some(info: AutomaticModuleName) =>
+              case Some(info: AutomaticModule) =>
                 if (originalJar.moduleName.isDefined)
                   log.warn(s"Already be a module $id -> $originalJar")
                 genIfNotExist(
@@ -126,8 +126,8 @@ object ModuleInfoPlugin extends AutoPlugin {
 
   private def moduleInfoGenClass: Def.Initialize[Task[Option[File]]] = Def.taskDyn {
     moduleInfo.value match {
-      case _: KnownModule | _: AutomaticModuleName => Def.task(None)
-      case info0: JModuleInfo =>
+      case _: KnownModule | _: AutomaticModule => Def.task(None)
+      case info0: JpmsModule =>
         Def.taskDyn {
           val classDir = (Compile / classDirectory).value
           val f = classDir / "module-info.class"
