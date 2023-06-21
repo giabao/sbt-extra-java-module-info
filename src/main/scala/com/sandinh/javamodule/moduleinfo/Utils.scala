@@ -14,15 +14,17 @@ import scala.collection.compat.immutable.LazyList
 
 object Utils {
   def toSlash(fqdn: String): String = fqdn.replace('.', '/')
+  private def configurationContains(configurations: Option[String], c: String) =
+    configurations.forall { cs =>
+      cs.split(';').map(_.replace(" ", "")).exists(s => s == c || s.startsWith(s"$c->"))
+    }
+  private[moduleinfo] def isRuntimeDepend(configurations: Option[String]): Boolean =
+    configurationContains(configurations, "compile") || configurationContains(configurations, "runtime")
 
   implicit final class ModuleIDOps(val m: ModuleID) extends AnyVal {
     def jmodId: String = s"${m.organization}:${m.name}"
     def jmodId(is: Option[ScalaModuleInfo]): String =
       CrossVersion(m, is).getOrElse(identity[String] _)(m.jmodId)
-
-    def containsConfiguration(c: String): Boolean = m.configurations.forall { cs =>
-      cs.split(';').map(_.replace(" ", "")).exists(s => s == c || s.startsWith(s"$c->"))
-    }
   }
 
   implicit final class JarOutputStreamOps(val jos: JarOutputStream) extends AnyVal {
@@ -33,11 +35,6 @@ object Utils {
     }
   }
   implicit final class JarInputStreamOps(val jis: JarInputStream) extends AnyVal {
-    def isMultiReleaseJar: Boolean = {
-      val man = jis.getManifest
-      man != null && parseBoolean(man.getMainAttributes.getValue("Multi-Release"))
-    }
-
     def lazyList: LazyList[JarEntry] = LazyList.continually(jis.getNextJarEntry).takeWhile(_ != null)
 
     def getOrCreateManifest: Manifest = jis.getManifest match {
@@ -46,6 +43,26 @@ object Utils {
         m.getMainAttributes.putValue("Manifest-Version", "1.0")
         m
       case m => m
+    }
+
+    def jpmsModuleName(man: Option[Manifest] = Option(jis.getManifest)): Option[String] = {
+      val multi = man.fold(false)(_.isMultiRelease)
+      jis.lazyList
+        .find { e =>
+          e.getName == "module-info.class" ||
+          multi && ModuleInfoClassMjarPath.matcher(e.getName).matches()
+        }
+        .map { _ =>
+          val cr = new ClassReader(jis)
+          val classNode = new ClassNode
+          cr.accept(classNode, SKIP_CODE | SKIP_DEBUG | SKIP_FRAMES)
+          classNode.module.name
+        }
+    }
+
+    def moduleName: Option[String] = {
+      val man = Option(jis.getManifest)
+      man.flatMap(_.autoModuleName).orElse(jpmsModuleName(man))
     }
   }
 
@@ -67,10 +84,6 @@ object Utils {
         else new JarOutputStream(out, man)
       }(jar)(f)
 
-    def isAutoModule: Boolean = jarInputStream { jis =>
-      Option(jis.getManifest).flatMap(_.autoModuleName).isDefined
-    }
-
     def addAutoModuleName(moduleName: String): File = {
       val man = jarInputStream { jis =>
         val m = jis.getOrCreateManifest
@@ -80,32 +93,7 @@ object Utils {
       jarOutputStream(man)(_ => jar)
     }
 
-    def isModule: Boolean = jarInputStream { jis =>
-      val isMultiReleaseJar = jis.isMultiReleaseJar
-      jis.lazyList.map(_.getName).exists {
-        case "module-info.class" => true
-        case name                => isMultiReleaseJar && ModuleInfoClassMjarPath.matcher(name).matches()
-      }
-    }
-
-    def moduleName: Option[String] = jarInputStream { jis =>
-      val man = Option(jis.getManifest)
-      man
-        .flatMap(_.autoModuleName)
-        .orElse {
-          val isMultiReleaseJar = man.fold(false)(_.isMultiRelease)
-          jis.lazyList
-            .find { e =>
-              e.getName == "module-info.class" ||
-              isMultiReleaseJar && ModuleInfoClassMjarPath.matcher(e.getName).matches()
-            }
-            .map { _ =>
-              val cr = new ClassReader(jis)
-              val classNode = new ClassNode
-              cr.accept(classNode, SKIP_CODE | SKIP_DEBUG | SKIP_FRAMES)
-              classNode.module.name
-            }
-        }
-    }
+    def jpmsModuleName: Option[String] = jarInputStream(_.jpmsModuleName())
+    def moduleName: Option[String] = jarInputStream(_.moduleName)
   }
 }

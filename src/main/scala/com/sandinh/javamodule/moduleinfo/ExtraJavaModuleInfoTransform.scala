@@ -1,6 +1,6 @@
 package com.sandinh.javamodule.moduleinfo
 
-import org.jetbrains.annotations.Nullable
+import org.jetbrains.annotations.{NotNull, Nullable}
 import org.objectweb.asm.{ClassWriter, Opcodes}
 import sbt.*
 import sbt.Keys.*
@@ -173,20 +173,21 @@ object ExtraJavaModuleInfoTransform {
 }
 
 private class ModuleInfoArgs(infos: Seq[ModuleSpec], jarTypes: Set[String], up: UpdateReport) {
-  private lazy val allInfos = infos ++ artifacts.flatMap { a =>
+  private def knowns = artifacts.flatMap { a =>
     def id = a.get(moduleID.key).get.jmodId
-    a.data.moduleName.toSeq.map(KnownModule(id, _))
+    a.data.moduleName.map(KnownModule(_, id)).toSeq
   }
-  def idToModuleName(id: String): String = allInfos
-    .find(_.id == id)
-    .fold(
-      throw new RuntimeException(
-        s"""The module name of the following component is not known: $id
-         | - If it is not a module, patch it by adding 'JModuleInfo()' or 'AutomaticModuleName()' to the `moduleInfos`
-         | - If it is already a module, make the module name known by adding 'KnownModule("$id", "<module name>")' to the `moduleInfos`
-         |   Example: Search `KnownModule` at https://github.com/giabao/sbt-java-module-info/blob/master/src/sbt-test/all/all/build.sbt) """.stripMargin
-      )
-    )(_.moduleName)
+  private lazy val moduleNameMap = (knowns ++ infos).map(m => m.id -> m.moduleName).toMap
+  def idToModuleName(@NotNull id: String): String = moduleNameMap.getOrElse(
+    id,
+    throw new RuntimeException(
+      s"""The module name of the following dependency is not known: $id
+       | - If it is an external legacy dependency, patch it to a 'JModuleInfo' or 'AutomaticModuleName', eg:
+       |   `Global / moduleInfos += JModuleInfo("paranamer", "com.thoughtworks.paranamer:paranamer")`
+       | - If it is your own sbt project, eg `myPrj`, set moduleInfo for it, eg:
+       |   `myPrj = project.settings(moduleInfo := AutomaticModuleName("com.myprj"))`""".stripMargin
+    )
+  )
   // @see managedClasspath
   lazy val artifacts: Classpath = up
     .filter(

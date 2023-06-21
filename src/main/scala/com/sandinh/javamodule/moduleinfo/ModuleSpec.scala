@@ -1,7 +1,7 @@
 package com.sandinh.javamodule.moduleinfo
 
 import com.sandinh.javamodule.moduleinfo.Utils.toSlash
-import org.jetbrains.annotations.Nullable
+import org.jetbrains.annotations.{NotNull, Nullable}
 import org.objectweb.asm.{ClassWriter, Opcodes}
 
 sealed trait ModuleSpec {
@@ -9,10 +9,11 @@ sealed trait ModuleSpec {
   /** Id of this module in format `organization:name`
     * Note `name` contains the scala version suffix like `_2.13` if this module is a scala depended lib
     * For `moduleInfo` task, this field will be automatically generated
+    * For other cases, this must not be null
     */
-  def id: String
+  @Nullable def id: String
 
-  /** the Module Name of the Module to construct */
+  /** The Module Name of the Module to construct */
   def moduleName: String
 
   /** identifiers like List(org1:name1, org2:name2) of dependencies will be merged to the .jar file of this module.
@@ -22,36 +23,38 @@ sealed trait ModuleSpec {
     * Note: ignore for `moduleInfo` task
     */
   def mergedJars: List[String]
+
+  def withDefaultId(@NotNull id: String): ModuleSpec
 }
 
 final case class KnownModule(
-    id: String,
+    /** @inheritdoc */
     moduleName: String,
+    /** @inheritdoc */
+    @Nullable id: String = null,
 ) extends ModuleSpec {
   def mergedJars: List[String] = Nil
-}
-object KnownModule {
-  import sbt.*, Keys.*
-  import Utils.ModuleIDOps, ModuleInfoPlugin.autoImport.moduleInfo
-  def of(p: Project): Def.Initialize[KnownModule] = Def.setting(
-    KnownModule(
-      (p / projectID).value.jmodId((ThisProject / scalaModuleInfo).value),
-      (p / moduleInfo / moduleName).value
-    )
-  )
+  def withDefaultId(@NotNull id: String): KnownModule = if (this.id != null) this else copy(id = id)
 }
 
+// TODO rename
 final case class AutomaticModuleName(
-    id: String,
+    /** @inheritdoc */
     moduleName: String,
+    /** @inheritdoc */
+    @Nullable id: String = null,
+    /** @inheritdoc */
     mergedJars: List[String] = Nil,
-) extends ModuleSpec
+) extends ModuleSpec {
+  def withDefaultId(@NotNull id: String): AutomaticModuleName = if (this.id != null) this else copy(id = id)
+}
 
+// TODO rename
 final case class JModuleInfo(
     /** @inheritdoc */
-    id: String,
-    /** @inheritdoc */
     moduleName: String,
+    /** @inheritdoc */
+    @Nullable id: String = null,
     @Nullable moduleVersion: String = null,
     openModule: Boolean = true,
     exports: Set[String] = Set.empty,
@@ -109,6 +112,8 @@ final case class JModuleInfo(
     cw.visitEnd()
     cw.toByteArray
   }
+
+  def withDefaultId(@NotNull id: String): JModuleInfo = if (this.id != null) this else copy(id = id)
 }
 
 sealed trait Require {

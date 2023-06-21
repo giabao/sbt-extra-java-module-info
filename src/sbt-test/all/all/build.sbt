@@ -9,10 +9,23 @@ inThisBuild(
     organization := "com.sandinh",
   )
 )
-lazy val sub = project.settings(
-  moduleInfo / moduleName := "sd.test.all",
+Global / moduleInfos := Seq(
+  AutomaticModuleName("paranamer", "com.thoughtworks.paranamer:paranamer"),
+  JModuleInfo(
+    "com.fasterxml.jackson.scala",
+    "com.fasterxml.jackson.module:jackson-module-scala_3",
+  ),
 )
-lazy val all = project
+// we use `sub/moduleInfo` to dynamically calculate `moduleInfos` for `root` project
+// but ModuleInfoPlugin is not enabled in `sub` so sbt will warn `sub / moduleInfo` is unused
+// In real projects, we should enable ModuleInfoPlugin to make our project jpms compatible
+Global / excludeLintKeys += moduleInfo
+lazy val sub = project
+//  .enablePlugins(ModuleInfoPlugin)
+  .settings(
+    moduleInfo := AutomaticModuleName("sd.test.sub"),
+  )
+lazy val root = project
   .in(file("."))
   .dependsOn(sub)
   .enablePlugins(ModuleInfoPlugin)
@@ -21,18 +34,7 @@ lazy val all = project
       "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.15.2",
       "org.jetbrains" % "annotations" % "24.0.1" % Provided,
     ),
-    moduleInfo / moduleName := "sd.test.all",
-    moduleInfos := Seq(
-      KnownModule.of(sub).value,
-      AutomaticModuleName(
-        "com.thoughtworks.paranamer:paranamer",
-        "paranamer"
-      ),
-      JModuleInfo(
-        "com.fasterxml.jackson.module:jackson-module-scala_3",
-        "com.fasterxml.jackson.scala",
-      ),
-    ),
+    moduleInfo := JModuleInfo("sd.test.root"),
     scriptedScalatestSpec := Some(new AnyFlatSpec with Matchers with ScriptedScalatestSuiteMixin {
       override val sbtState: State = state.value
 
