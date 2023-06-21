@@ -30,4 +30,5 @@ lazy val root = (project in file("."))
       s"org.scalatest::scalatest-flatspec:$scalatestV",
       s"org.scalatest::scalatest-mustmatchers:$scalatestV",
     ),
+    Compile / doc / sources := Nil,
   )
