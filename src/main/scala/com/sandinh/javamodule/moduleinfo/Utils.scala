@@ -77,6 +77,7 @@ object Utils {
     def jarInputStream[R](f: JarInputStream => R): R =
       Using.jarInputStream(Files.newInputStream(jar.toPath))(f)
 
+    /** @note `jar` file will be open using CREATE & WRITE & TRUNCATE_EXISTING StandardOpenOption */
     def jarOutputStream[R](man: Manifest = null)(f: JarOutputStream => R): R =
       Using.resource { (f: File) =>
         val out = Files.newOutputStream(f.toPath)
@@ -84,13 +85,12 @@ object Utils {
         else new JarOutputStream(out, man)
       }(jar)(f)
 
-    def addAutoModuleName(moduleName: String): File = {
-      val man = jarInputStream { jis =>
-        val m = jis.getOrCreateManifest
-        m.getMainAttributes.putValue("Automatic-Module-Name", moduleName)
-        m
-      }
-      jarOutputStream(man)(_ => jar)
+    def addAutomaticModuleName(moduleName: String): File = {
+      import java.nio.file.StandardCopyOption.*
+      val tmpJar = Files.createTempFile(null, null).toFile
+      ExtraJavaModuleInfoTransform.addAutomaticModuleName(Nil, jar, tmpJar, AutomaticModule(moduleName))
+      Files.move(tmpJar.toPath, jar.toPath, REPLACE_EXISTING, ATOMIC_MOVE)
+      jar
     }
 
     def jpmsModuleName: Option[String] = jarInputStream(_.jpmsModuleName())

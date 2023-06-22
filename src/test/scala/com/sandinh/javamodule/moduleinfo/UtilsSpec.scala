@@ -4,7 +4,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.must
 import java.nio.file.Files
 import java.util.zip.ZipEntry
-import com.sandinh.javamodule.moduleinfo.Utils.JarFileOps
+import com.sandinh.javamodule.moduleinfo.Utils.*
 
 class UtilsSpec extends AnyFlatSpec with must.Matchers {
   "Utils.JarFileOps" should "addAutoModuleName" in {
@@ -17,11 +17,15 @@ class UtilsSpec extends AnyFlatSpec with must.Matchers {
       jos.closeEntry()
     }
     f.isFile mustBe true
+    f.jarInputStream(_.lazyList.headOption) mustBe defined
 
-    f.addAutoModuleName("foo.bar")
+    f.addAutomaticModuleName("foo.bar")
 
     val man = f.jarInputStream(_.getManifest)
     man must not be (null)
     man.getMainAttributes.getValue("Automatic-Module-Name") mustBe "foo.bar"
+    val e = f.jarInputStream(_.lazyList.headOption)
+    e mustBe defined
+    e.get.getName mustBe "foo.txt"
   }
 }

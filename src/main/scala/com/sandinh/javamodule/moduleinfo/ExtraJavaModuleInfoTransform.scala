@@ -1,18 +1,15 @@
 package com.sandinh.javamodule.moduleinfo
 
-import org.jetbrains.annotations.{NotNull, Nullable}
-import org.objectweb.asm.{ClassWriter, Opcodes}
+import com.sandinh.javamodule.moduleinfo.Utils.*
+import org.jetbrains.annotations.NotNull
 import sbt.*
 import sbt.Keys.*
-import sbt.io.{IO, Using}
 import sbt.librarymanagement.Configurations.{Compile, Runtime}
 
-import java.nio.file.Files
-import java.util.jar.{JarEntry, JarInputStream, JarOutputStream, Manifest}
+import java.util.jar.{JarEntry, JarInputStream, JarOutputStream}
 import java.util.zip.ZipException
 import scala.io.Codec.UTF8
 import scala.io.Source
-import Utils.*
 
 object ExtraJavaModuleInfoTransform {
   private val JarSignaturePath = "^META-INF/[^/]+\\.(SF|RSA|DSA|sf|rsa|dsa)$".r.pattern
@@ -27,14 +24,16 @@ object ExtraJavaModuleInfoTransform {
       originalJar: File,
       moduleJar: File,
       automaticModule: AutomaticModule
-  ): Unit = originalJar.jarInputStream { jis =>
-    val man = jis.getOrCreateManifest
-    man.getMainAttributes.putValue("Automatic-Module-Name", automaticModule.moduleName)
-    moduleJar.jarOutputStream(man) { jos =>
-      val pp = copyAndExtractProviders(jis, jos, automaticModule.mergedJars.nonEmpty, PP.empty)
-      mergeJars(artifacts, automaticModule, jos, pp)
+  ): Unit = originalJar
+    .ensuring(_ != moduleJar, s"moduleJar must != originalJar:\n$moduleJar\n$originalJar")
+    .jarInputStream { jis =>
+      val man = jis.getOrCreateManifest
+      man.getMainAttributes.putValue("Automatic-Module-Name", automaticModule.moduleName)
+      moduleJar.jarOutputStream(man) { jos =>
+        val pp = copyAndExtractProviders(jis, jos, automaticModule.mergedJars.nonEmpty, PP.empty)
+        mergeJars(artifacts, automaticModule, jos, pp)
+      }
     }
-  }
 
   def addModuleDescriptor(
       args: ModuleInfoArgs,
@@ -66,24 +65,26 @@ object ExtraJavaModuleInfoTransform {
     def versionFromArts = args.artifacts.collectFirst {
       case a if a.data == originalJar => a.get(moduleID.key).get.revision
     }
-    originalJar.jarInputStream { jis =>
-      moduleJar.jarOutputStream(jis.getManifest) { jos =>
-        var pp = copyAndExtractProviders(jis, jos, info.mergedJars.nonEmpty, PP.empty)
-        pp = mergeJars(args.artifacts, info, jos, pp)
-        jos.addModuleInfo(
-          info.copy(
-            moduleVersion = Option(info.moduleVersion).orElse(versionFromArts).orNull,
-            providers = pp.providers.filterKeys(name => !info.ignoreServiceProviders.contains(name)),
-            requires =
-              if (!info.requireAll) info.requires
-              else info.requires ++ requires,
-            exports =
-              if (!info.exportAll) info.exports
-              else info.exports ++ pp.packages
-          ),
-        )
+    originalJar
+      .ensuring(_ != moduleJar, s"moduleJar must != originalJar:\n$moduleJar\n$originalJar")
+      .jarInputStream { jis =>
+        moduleJar.jarOutputStream(jis.getManifest) { jos =>
+          var pp = copyAndExtractProviders(jis, jos, info.mergedJars.nonEmpty, PP.empty)
+          pp = mergeJars(args.artifacts, info, jos, pp)
+          jos.addModuleInfo(
+            info.copy(
+              moduleVersion = Option(info.moduleVersion).orElse(versionFromArts).orNull,
+              providers = pp.providers.filterKeys(name => !info.ignoreServiceProviders.contains(name)),
+              requires =
+                if (!info.requireAll) info.requires
+                else info.requires ++ requires,
+              exports =
+                if (!info.exportAll) info.exports
+                else info.exports ++ pp.packages
+            ),
+          )
+        }
       }
-    }
   }
 
   private def copyAndExtractProviders(
