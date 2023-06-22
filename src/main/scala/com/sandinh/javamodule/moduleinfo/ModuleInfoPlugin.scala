@@ -36,7 +36,7 @@ object ModuleInfoPlugin extends AutoPlugin {
         ManifestAttributes("Automatic-Module-Name" -> moduleName) +: Nil
       case _ => Nil
     }),
-    Compile / products ++= moduleInfoGenClass.value,
+    Compile / products := (Compile / products).runBefore(moduleInfoGenClass).value,
     update := transformUpdateReport.value(update.value),
   )
 
