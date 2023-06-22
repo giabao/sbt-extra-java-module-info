@@ -88,7 +88,7 @@ object Utils {
     def addAutomaticModuleName(moduleName: String): File = {
       import java.nio.file.StandardCopyOption.*
       val tmpJar = Files.createTempFile(null, null).toFile
-      ExtraJavaModuleInfoTransform.addAutomaticModuleName(Nil, jar, tmpJar, AutomaticModule(moduleName))
+      ModuleTransform.addAutomaticModuleName(Nil, jar, tmpJar, AutomaticModule(moduleName))
       Files.move(tmpJar.toPath, jar.toPath, REPLACE_EXISTING, ATOMIC_MOVE)
       jar
     }

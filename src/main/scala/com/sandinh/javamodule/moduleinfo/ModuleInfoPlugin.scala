@@ -3,7 +3,7 @@ package com.sandinh.javamodule.moduleinfo
 import sbt.*
 import sbt.Keys.*
 import Utils.*
-import ExtraJavaModuleInfoTransform.{addAutomaticModuleName, addModuleDescriptor}
+import ModuleTransform.{addAutomaticModuleName, addModuleDescriptor}
 import sbt.Package.ManifestAttributes
 import sbt.internal.BuildDependencies
 import sbt.librarymanagement.Configurations.RuntimeInternal

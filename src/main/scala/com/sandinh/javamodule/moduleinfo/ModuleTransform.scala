@@ -11,7 +11,7 @@ import java.util.zip.ZipException
 import scala.io.Codec.UTF8
 import scala.io.Source
 
-object ExtraJavaModuleInfoTransform {
+object ModuleTransform {
   private val JarSignaturePath = "^META-INF/[^/]+\\.(SF|RSA|DSA|sf|rsa|dsa)$".r.pattern
   private val ServicesPrefix = "META-INF/services/"
 
