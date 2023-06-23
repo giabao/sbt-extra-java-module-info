@@ -7,7 +7,6 @@ import ModuleTransform.{addAutomaticModuleName, addModuleDescriptor}
 import sbt.Package.ManifestAttributes
 import sbt.internal.BuildDependencies
 import sbt.librarymanagement.Configurations.RuntimeInternal
-import sbt.librarymanagement.ScalaModuleInfo
 import sbt.sandinh.DependencyTreeAccess
 import sbt.sandinh.DependencyTreeAccess.{moduleInfoDepGraph, toDepsMap}
 
@@ -73,51 +72,71 @@ object ModuleInfoPlugin extends AutoPlugin {
 
     (report: UpdateReport) => {
       val args = new ModuleInfoArgs(infos, clsTypes, report)
-      val remapped = report
+      val idToJar: Map[String, Option[File]] = report
         .configuration(RuntimeInternal)
         .get
         .modules
         .filter(_.artifacts.nonEmpty)
         .map { mod =>
           val id = mod.module.jmodId
-          if (infos.exists(_.mergedJars.contains(id))) id -> Nil
+          if (infos.exists(_.mergedJars.contains(id))) id -> None
           else {
             val originalJar = jarOf(mod)
             val moduleJar = out / originalJar.name
             val remappedJar = infos.find(_.id == id) match {
-              case Some(_: KnownModule) => originalJar
+              case Some(info) if originalJar.moduleName.exists(_ != info.moduleName) =>
+                sys.error(
+                  s"$id:${originalJar.name} is already a module. Reject transforming moduleName to ${info.moduleName}"
+                )
+              case Some(_: KnownModule) => Some(originalJar)
               case Some(info: JpmsModule) =>
-                if (originalJar.jpmsModuleName.isDefined)
-                  log.warn(s"Already be a jpms module $id -> $originalJar")
+                originalJar.jpmsModuleName.foreach { n =>
+                  log.err(
+                    s"$id:${originalJar.name} is already a jpms module $n. Still transform to $moduleJar"
+                  )
+                }
                 genIfNotExist(
                   moduleJar,
                   addModuleDescriptor(args, compileDepsMap, runtimeDepsMap, originalJar, _, info)
                 )
+                Some(moduleJar)
               case Some(info: AutomaticModule) =>
-                if (originalJar.moduleName.isDefined)
-                  log.warn(s"Already be a module $id -> $originalJar")
-                genIfNotExist(
-                  moduleJar,
-                  addAutomaticModuleName(args.artifacts, originalJar, _, info)
-                )
+                originalJar.jpmsModuleName
+                  .map { n =>
+                    log.err(
+                      s"$id:${originalJar.name} is already a jpms module $n. Reject transforming to AutomaticModule ${info.moduleName}"
+                    )
+                    originalJar
+                  }
+                  .orElse {
+                    if (originalJar.autoModuleName.isDefined && info.mergedJars.isEmpty) {
+                      Some(originalJar)
+                    } else {
+                      genIfNotExist(
+                        moduleJar,
+                        addAutomaticModuleName(args.artifacts, originalJar, _, info)
+                      )
+                      Some(moduleJar)
+                    }
+                  }
               case None =>
-                if (originalJar.moduleName.isDefined) originalJar
+                if (originalJar.moduleName.isDefined) Some(originalJar)
                 else if (!failOnMissing) {
                   log.warn(s"Not a module and no mapping defined: $id -> $originalJar")
-                  originalJar
+                  Some(originalJar)
                 } else
                   sys.error(s"Not a module and no mapping defined: $id -> $originalJar")
             }
-            id -> List(remappedJar)
+            id -> remappedJar
           }
         }
         .toMap
       report.withConfigurations(report.configurations.map { c =>
         c.withModules(c.modules.flatMap { mod =>
-          remapped.get(mod.module.jmodId) match {
+          idToJar.get(mod.module.jmodId) match {
             case None                    => mod +: Nil
-            case Some(Nil)               => Nil
-            case Some(List(remappedJar)) => withJar(mod, remappedJar) +: Nil
+            case Some(None)              => Nil
+            case Some(Some(remappedJar)) => withJar(mod, remappedJar) +: Nil
           }
         })
       })
@@ -174,9 +193,8 @@ object ModuleInfoPlugin extends AutoPlugin {
   }
 
   // TODO cache and re-generate when needed
-  private def genIfNotExist(f: File, gen: File => Unit) =
-    if (f.isFile) f
-    else { gen(f); f.ensuring(_.isFile) }
+  private def genIfNotExist(f: File, gen: File => Unit): Unit =
+    if (!f.isFile) gen(f)
 
   private def jarOf(mod: ModuleReport) = mod.artifacts.collect {
     case (a, f) if a.extension == "jar" => f

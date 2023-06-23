@@ -45,8 +45,8 @@ object Utils {
       case m => m
     }
 
-    def jpmsModuleName(man: Option[Manifest] = Option(jis.getManifest)): Option[String] = {
-      val multi = man.fold(false)(_.isMultiRelease)
+    def jpmsModuleName: Option[String] = {
+      val multi = Option(jis.getManifest).fold(false)(_.isMultiRelease)
       jis.lazyList
         .find { e =>
           e.getName == "module-info.class" ||
@@ -60,10 +60,8 @@ object Utils {
         }
     }
 
-    def moduleName: Option[String] = {
-      val man = Option(jis.getManifest)
-      man.flatMap(_.autoModuleName).orElse(jpmsModuleName(man))
-    }
+    def autoModuleName: Option[String] = Option(jis.getManifest).flatMap(_.autoModuleName)
+    def moduleName: Option[String] = jpmsModuleName.orElse(autoModuleName)
   }
 
   private val ModuleInfoClassMjarPath = "META-INF/versions/\\d+/module-info.class".r.pattern
@@ -93,7 +91,8 @@ object Utils {
       jar
     }
 
-    def jpmsModuleName: Option[String] = jarInputStream(_.jpmsModuleName())
+    def jpmsModuleName: Option[String] = jarInputStream(_.jpmsModuleName)
+    def autoModuleName: Option[String] = jarInputStream(_.autoModuleName)
     def moduleName: Option[String] = jarInputStream(_.moduleName)
   }
 }
