@@ -40,7 +40,7 @@ lazy val root = project
 
       "ModuleInfoPlugin" should "generate module-info.class" in {
         val Some((_, Value(ret))) = Project.runTask(Compile / products, sbtState)
-        val f = ret.find(_.name == "module-info.class")
+        val f = ret.flatMap(IO.listFiles(_, "module-info.class")).headOption
         assert(f.isDefined)
         assert(f.get.getParentFile.name == "classes")
       }

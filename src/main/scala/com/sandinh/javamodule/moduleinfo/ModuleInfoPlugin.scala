@@ -6,6 +6,7 @@ import Utils.*
 import ModuleTransform.{addAutomaticModuleName, addModuleDescriptor}
 import sbt.Package.ManifestAttributes
 import sbt.internal.BuildDependencies
+import sbt.io.FileFilter
 import sbt.librarymanagement.Configurations.RuntimeInternal
 import sbt.sandinh.DependencyTreeAccess
 import sbt.sandinh.DependencyTreeAccess.{moduleInfoDepGraph, toDepsMap}
@@ -15,6 +16,7 @@ object ModuleInfoPlugin extends AutoPlugin {
     val moduleInfo = settingKey[ModuleSpec](
       "JpmsModule or AutomaticModule used to generate module-info.class or set Automatic-Module-Name field in MANIFEST.MF for this project"
     )
+    val moduleInfoGenClass = taskKey[Option[File]]("Generate module-info.class")
     val moduleInfos = settingKey[Seq[ModuleSpec]](
       "extra Java module-info to patch non-module jar dependencies"
     )
@@ -35,7 +37,9 @@ object ModuleInfoPlugin extends AutoPlugin {
         ManifestAttributes("Automatic-Module-Name" -> moduleName) +: Nil
       case _ => Nil
     }),
-    Compile / products := (Compile / products).runBefore(moduleInfoGenClass).value,
+    moduleInfoGenClass := genModuleInfoClass.value,
+    // filter(_ => false) so we don't add classes/module-info.class file to `products` which contains directories
+    Compile / products ++= moduleInfoGenClass.value.filter(_ => false),
     update := transformUpdateReport.value(update.value),
   )
 
@@ -143,7 +147,15 @@ object ModuleInfoPlugin extends AutoPlugin {
     }
   }
 
-  private def moduleInfoGenClass: Def.Initialize[Task[Option[File]]] = Def.taskDyn {
+  private def dirs(d: File, filter: FileFilter) = PathFinder(d)
+    .glob(DirectoryFilter)
+    .globRecursive(filter)
+    .get()
+    .map { f => IO.relativize(d, f.getParentFile).get }
+    .toSet
+
+  /** Generate module-info.class in Compile / classDirectory */
+  private def genModuleInfoClass: Def.Initialize[Task[Option[File]]] = Def.taskDyn {
     moduleInfo.value match {
       case _: KnownModule | _: AutomaticModule => Def.task(None)
       case info0: JpmsModule =>
@@ -152,15 +164,7 @@ object ModuleInfoPlugin extends AutoPlugin {
           val f = classDir / "module-info.class"
           val info1 =
             if (!info0.exportAll) info0
-            else
-              info0.copy(exports =
-                PathFinder(classDir)
-                  .glob(DirectoryFilter)
-                  .globRecursive("*.class")
-                  .get()
-                  .map { f => IO.relativize(classDir, f.getParentFile).get }
-                  .toSet ++ info0.exports
-              )
+            else info0.copy(exports = dirs(classDir, "*.class") ++ info0.exports)
           val info = info1.copy(
             moduleVersion = Option(info1.moduleVersion).getOrElse(version.value),
             mainClass = Option(info1.mainClass).getOrElse((Compile / run / mainClass).value)
