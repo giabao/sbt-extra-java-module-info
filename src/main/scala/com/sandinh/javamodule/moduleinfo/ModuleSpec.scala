@@ -97,7 +97,7 @@ final case class JpmsModule(
     mainClass.foreach(moduleVisitor.visitMainClass)
     exports.map(toSlash).foreach(moduleVisitor.visitExport(_, 0))
     opens.map(toSlash).foreach(moduleVisitor.visitOpen(_, 0))
-    //    moduleVisitor.visitRequire("java.base", 0, null)
+    moduleVisitor.visitRequire("java.base", 0, null)
     requires.foreach { case (module, access) => moduleVisitor.visitRequire(module, access.code, null) }
     uses.map(toSlash).foreach(moduleVisitor.visitUse)
     providers.foreach { case (name, implementations) =>
